@@ -1,0 +1,43 @@
+# Environment / secrets
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+*.so
+
+# Virtual environment (uv)
+.venv/
+venv/
+.python-version
+
+# pytest
+.pytest_cache/
+.cache/
+htmlcov/
+.coverage
+coverage.xml
+
+# mypy / ruff / linters
+.mypy_cache/
+.ruff_cache/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+
+# uv lock (keep uv.lock, ignore only if you want reproducible installs)
+# uv.lock  ← не игнорируем, оставляем в репо для воспроизводимости

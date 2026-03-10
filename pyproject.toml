@@ -1,0 +1,21 @@
+[project]
+name = "custom-code-agent"
+version = "0.1.0"
+description = "Custom code agent with pluggable tools and token tracking, built on OpenHands SDK"
+requires-python = ">=3.12"
+dependencies = [
+    "openhands-ai>=1.4.0",
+    "python-dotenv>=1.2.2",
+    "rich>=14.3.3",
+]
+
+[project.scripts]
+agent = "run:main"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+]
