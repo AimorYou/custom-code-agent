@@ -18,9 +18,12 @@ from rich.console import Console
 from rich.table import Table
 
 
-# Pricing per million tokens (as of early 2025)
-# Keys match litellm model IDs (provider/model) or short model names
+# Pricing per million tokens (USD).
+# Keys are model names WITHOUT provider prefix:
+#   "anthropic/claude-sonnet-4-6" → key "claude-sonnet-4-6"
+#   "openai/qwen/qwen3-coder-next" → key "qwen/qwen3-coder-next"
 MODEL_PRICING: dict[str, dict[str, float]] = {
+    # Anthropic
     "claude-sonnet-4-6": {
         "input": 3.0,
         "output": 15.0,
@@ -39,6 +42,13 @@ MODEL_PRICING: dict[str, dict[str, float]] = {
         "cache_write": 1.0,
         "cache_read": 0.08,
     },
+    # polza.ai (prices in ₽ converted at ~88 ₽/$)
+    "qwen/qwen3-coder-next": {
+        "input": 0.489,   # 43.04 ₽/M ÷ 88
+        "output": 1.174,  # 103.31 ₽/M ÷ 88
+        "cache_write": 0.0,
+        "cache_read": 0.0,
+    },
 }
 
 
@@ -55,13 +65,19 @@ class StepUsage:
         return self.input_tokens + self.output_tokens
 
     def cost(self, model: str) -> float:
-        key = model.split("/")[-1]
-        pricing = MODEL_PRICING.get(key, MODEL_PRICING["claude-sonnet-4-6"])
+        # Strip only the first segment (provider), keep the rest as model key.
+        # "anthropic/claude-sonnet-4-6"    → "claude-sonnet-4-6"
+        # "openai/qwen/qwen3-coder-next"   → "qwen/qwen3-coder-next"
+        parts = model.split("/")
+        key = "/".join(parts[1:]) if len(parts) > 1 else model
+        pricing = MODEL_PRICING.get(key, {})
+        if not pricing:
+            return 0.0
         return (
             self.input_tokens * pricing["input"] / 1_000_000
             + self.output_tokens * pricing["output"] / 1_000_000
-            + self.cache_creation_input_tokens * pricing["cache_write"] / 1_000_000
-            + self.cache_read_input_tokens * pricing["cache_read"] / 1_000_000
+            + self.cache_creation_input_tokens * pricing.get("cache_write", 0.0) / 1_000_000
+            + self.cache_read_input_tokens * pricing.get("cache_read", 0.0) / 1_000_000
         )
 
 
@@ -89,8 +105,9 @@ class TokenTracker:
         return usage
 
     def _model_key(self) -> str:
-        """Normalize model ID to a pricing key (strip provider prefix)."""
-        return self.model.split("/")[-1]
+        """Normalize model ID to a pricing key (strip provider prefix only)."""
+        parts = self.model.split("/")
+        return "/".join(parts[1:]) if len(parts) > 1 else self.model
 
     @property
     def total_input(self) -> int:
@@ -139,6 +156,32 @@ class TokenTracker:
         table.add_row("Estimated cost", f"${s['total_cost_usd']:.4f}")
 
         console.print(table)
+
+
+def populate_from_llm_metrics(tracker: TokenTracker, agent: Any) -> None:
+    """
+    Read token usage from agent.llm.metrics.token_usages after conversation.run().
+
+    This is the primary way to track tokens when streaming is disabled (default).
+    Call this after conversation.run() completes.
+
+    Example:
+        conversation.run()
+        populate_from_llm_metrics(tracker, agent)
+        tracker.print_summary()
+    """
+    try:
+        usages = agent.llm.metrics.token_usages
+    except AttributeError:
+        return
+    for i, usage in enumerate(usages, 1):
+        tracker.record(
+            step=i,
+            input_tokens=getattr(usage, "prompt_tokens", 0),
+            output_tokens=getattr(usage, "completion_tokens", 0),
+            cache_creation_input_tokens=getattr(usage, "cache_write_tokens", 0),
+            cache_read_input_tokens=getattr(usage, "cache_read_tokens", 0),
+        )
 
 
 def make_token_callback(tracker: TokenTracker) -> Callable[[Any], None]:

@@ -40,7 +40,7 @@ from openhands.tools.terminal.definition import TerminalTool  # noqa: F401
 import agent.tools  # noqa: F401
 
 from agent.config import AgentConfig
-from agent.token_tracker import TokenTracker, make_token_callback
+from agent.token_tracker import TokenTracker, populate_from_llm_metrics
 
 
 def build_tools(config: AgentConfig) -> list[Tool]:
@@ -127,7 +127,6 @@ def main() -> None:
         agent=agent,
         workspace=config.working_dir,
         max_iteration_per_run=config.max_steps,
-        token_callbacks=[make_token_callback(tracker)],
         visualizer=visualizer,
     )
     try:
@@ -135,6 +134,7 @@ def main() -> None:
         conversation.run()
         final = get_agent_final_response(conversation.state.events)
     finally:
+        populate_from_llm_metrics(tracker, agent)
         conversation.close()
 
     if final and not config.verbose:
