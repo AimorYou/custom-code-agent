@@ -11,6 +11,7 @@ Usage:
     uv run python benchmarks/run_benchmark.py                          # все задачи
     uv run python benchmarks/run_benchmark.py task_003                 # одна задача
     uv run python benchmarks/run_benchmark.py --model anthropic/claude-opus-4-6 task_001
+    uv run python benchmarks/run_benchmark.py --verbose task_001
     uv run python benchmarks/run_benchmark.py --prompt-config custom.yaml task_001
 """
 
@@ -43,17 +44,12 @@ def run_agent(
     prompt_config: str | None,
     verbose: bool = False,
 ) -> dict:
-    """Запускаем агента через run.py — передаём только текст issue."""
-    env = {
-        **dict(__import__("os").environ),
-        "AGENT_WORKING_DIR": str(workspace),
-        "AGENT_MAX_STEPS": str(max_steps),
-        "AGENT_VERBOSE": "true" if verbose else "false",
-    }
-    if model:
-        env["AGENT_MODEL"] = model
-
+    """Запускаем агента через run.py — всё через CLI аргументы."""
     cmd = [sys.executable, str(RUN_PY)]
+    cmd += ["--working-dir", str(workspace)]
+    cmd += ["--max-steps", str(max_steps)]
+    if model:
+        cmd += ["--model", model]
     if prompt_config:
         cmd += ["--prompt-config", prompt_config]
     if not verbose:
@@ -61,13 +57,11 @@ def run_agent(
     cmd.append(issue_text)
 
     start = time.time()
-    # verbose: вывод агента идёт прямо в терминал; quiet: захватываем stdout
     if verbose:
-        result = subprocess.run(cmd, text=True, env=env, timeout=300,
-                                stderr=subprocess.PIPE)
-        result.stdout = ""  # вывод ушёл в терминал, парсить нечего
+        result = subprocess.run(cmd, text=True, timeout=300, stderr=subprocess.PIPE)
+        result.stdout = ""
     else:
-        result = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
     elapsed = time.time() - start
 
     # Проверяем, создал ли агент SUBMISSION.json
@@ -111,7 +105,7 @@ def run_tests(task_dir: Path, workspace: Path) -> dict:
 
 
 def extract_token_summary(stdout: str) -> dict:
-    """Парсим Token Usage Summary из вывода агента.""" # FIXME: Не работает
+    """Парсим Token Usage Summary из вывода агента."""  # FIXME: Не работает
     summary = {}
     for line in stdout.splitlines():
         line = line.strip()
@@ -140,8 +134,6 @@ def run_single_task(
     """Полный цикл для одной задачи."""
     with tempfile.TemporaryDirectory(prefix="bench_") as tmp_root:
         workspace = prepare_workspace(task_dir, Path(tmp_root))
-
-        # Читаем issue.md — это сырой "task", агент сам оборачивает его в instance_template
         issue_text = (task_dir / "issue.md").read_text()
 
         print(f"  Running agent...")
@@ -178,7 +170,7 @@ def main():
     parser.add_argument("--model", help="Model override (e.g. anthropic/claude-opus-4-6)")
     parser.add_argument("--max-steps", type=int, default=30, help="Max agent steps (default: 30)")
     parser.add_argument("--prompt-config", help="Path to prompt config YAML override")
-    parser.add_argument("--verbose", action="store_true", help="Show agent thoughts and tool calls in real time")
+    parser.add_argument("--verbose", action="store_true", help="Show agent thoughts and tool calls")
     parser.add_argument("--save", help="Save results to JSON file")
     args = parser.parse_args()
 

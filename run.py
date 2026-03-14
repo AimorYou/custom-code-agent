@@ -6,21 +6,14 @@ Usage:
     uv run run.py --list-tools
     uv run run.py --disable bash "task"
     uv run run.py --model anthropic/claude-opus-4-6 "task"
-    uv run run.py --model openai/gpt-4o "task"
-    uv run run.py --model openai/llama3 --base-url http://localhost:11434/v1 "task"
+    uv run run.py --working-dir /path/to/project "task"
     uv run run.py --quiet "task"
     uv run run.py --prompt-config path/to/config.yaml "task"
 
-Environment variables (or .env file):
-    ANTHROPIC_API_KEY    — for Anthropic models
-    OPENAI_API_KEY       — for OpenAI / compatible models
-    AGENT_API_KEY        — universal override (takes priority)
-    AGENT_MODEL          — default: anthropic/claude-sonnet-4-6
-    AGENT_BASE_URL       — custom API base URL (for OpenAI-compatible services)
-    AGENT_MAX_STEPS      — default: 50
-    AGENT_WORKING_DIR    — default: . (current directory)
-    AGENT_VERBOSE        — default: true
-    AGENT_DISABLED_TOOLS — comma-separated tool names to disable
+Config sources:
+    .env                   — secrets & connection (AGENT_API_KEY, AGENT_BASE_URL, AGENT_MODEL)
+    agent/prompt_config.yaml — behavior (system_template, instance_template, step_limit)
+    CLI args               — runtime overrides (--model, --max-steps, --working-dir, --quiet)
 """
 
 import argparse
@@ -33,37 +26,26 @@ from rich.console import Console
 from openhands.sdk import Agent, LLM, LocalConversation
 from openhands.sdk.conversation import get_agent_final_response
 from openhands.sdk.tool import Tool, list_registered_tools
+from openhands.sdk.conversation.visualizer import DefaultConversationVisualizer
 
 # Register OpenHands built-in tools
 from openhands.tools.terminal.definition import TerminalTool  # noqa: F401
-from openhands.sdk.conversation.visualizer import DefaultConversationVisualizer  # noqa: F401
 
 # Register our custom tools (bash, grep, smart_read, submit)
 import agent.tools  # noqa: F401
 
-from agent.config import AgentConfig, PromptConfig
+from agent.config import AgentConfig, AgentYamlConfig
 from agent.token_tracker import TokenTracker, populate_from_llm_metrics
 
 
 def build_tools(config: AgentConfig) -> list[Tool]:
-    """
-    All tools available to the agent.
-
-    Tool name = snake_case class name without '_tool' suffix:
-      TerminalTool  → "terminal"   (OpenHands built-in: persistent bash session)
-      BashTool      → "bash"       (custom: stateless subprocess, simpler)
-      GrepTool      → "grep"       (custom: regex search with context lines)
-      SmartReadTool → "smart_read" (custom: read file with optional line range)
-      SubmitTool    → "submit"     (custom: signal task completion)
-
-    Add Tool(name="your_tool") here when you add a new custom tool.
-    """
+    """All tools available to the agent."""
     all_tools = [
-        Tool(name="terminal"),    # persistent bash session (OpenHands built-in)
-        Tool(name="bash"),        # stateless subprocess bash (custom)
-        Tool(name="grep"),        # regex search with context (custom)
-        Tool(name="smart_read"),  # file reader with line range (custom)
-        Tool(name="submit"),      # signal task completion (custom)
+        Tool(name="terminal"),
+        Tool(name="bash"),
+        Tool(name="grep"),
+        Tool(name="smart_read"),
+        Tool(name="submit"),
     ]
     return [t for t in all_tools if t.name not in config.disabled_tools]
 
@@ -72,33 +54,34 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Custom code agent (OpenHands SDK)")
     parser.add_argument("task", nargs="?", help="Task for the agent to solve")
     parser.add_argument("--list-tools", action="store_true", help="List registered tools and exit")
-    parser.add_argument("--disable", nargs="+", metavar="TOOL", help="Disable specific tools for this run")
-    parser.add_argument("--model", help="litellm model ID (e.g. anthropic/claude-opus-4-6, openai/gpt-4o)")
-    parser.add_argument("--base-url", help="Custom API base URL for OpenAI-compatible services")
-    parser.add_argument("--api-key", help="API key override")
-    parser.add_argument("--max-steps", type=int, help="Override max steps")
+    parser.add_argument("--disable", nargs="+", metavar="TOOL", help="Disable specific tools")
+    parser.add_argument("--model", help="Override model from .env")
+    parser.add_argument("--base-url", help="Override base URL from .env")
+    parser.add_argument("--api-key", help="Override API key from .env")
+    parser.add_argument("--max-steps", type=int, help="Override step_limit from prompt_config.yaml")
+    parser.add_argument("--working-dir", help="Working directory (default: current dir)")
     parser.add_argument("--quiet", action="store_true", help="Suppress verbose output")
-    parser.add_argument(
-        "--prompt-config", metavar="YAML",
-        help="Path to prompt config YAML (default: agent/prompt_config.yaml)",
-    )
+    parser.add_argument("--prompt-config", metavar="YAML", help="Path to prompt config YAML")
     args = parser.parse_args()
 
+    # Build config: .env defaults + YAML + CLI overrides
     config = AgentConfig()
     if args.prompt_config:
-        config.prompts = PromptConfig.load(args.prompt_config)
+        config.yaml_config = AgentYamlConfig.load(args.prompt_config)
     if args.model:
         config.model = args.model
     if args.base_url:
         config.base_url = args.base_url
+    if args.api_key:
+        config.api_key = args.api_key
     if args.max_steps:
         config.max_steps = args.max_steps
-    else:
-        config.max_steps = config.prompts.step_limit
+    if args.working_dir:
+        config.working_dir = args.working_dir
     if args.quiet:
         config.verbose = False
     if args.disable:
-        config.disabled_tools.extend(args.disable)
+        config.disabled_tools = args.disable
 
     console = Console()
 
@@ -114,36 +97,33 @@ def main() -> None:
         parser.print_help()
         sys.exit(1)
 
-    api_key = args.api_key or config.api_key
-    if not api_key:
-        provider = config.model.split("/")[0] if "/" in config.model else "unknown"
+    if not config.api_key:
         console.print(
-            f"[red]Error: no API key found for provider '{provider}'.\n"
-            f"Set ANTHROPIC_API_KEY, OPENAI_API_KEY, or AGENT_API_KEY.[/red]"
+            "[red]Error: no API key found.\n"
+            "Set AGENT_API_KEY in .env or pass --api-key.[/red]"
         )
         sys.exit(1)
 
     tools = build_tools(config)
     tracker = TokenTracker(model=config.model)
 
-    llm_kwargs = dict(model=config.model, api_key=SecretStr(api_key))
+    llm_kwargs = dict(model=config.model, api_key=SecretStr(config.api_key))
     if config.base_url:
         llm_kwargs["base_url"] = config.base_url
 
-    # Use our custom system prompt template (absolute path)
     agent = Agent(
         llm=LLM(**llm_kwargs),
         tools=tools,
-        system_prompt_filename=config.prompts.system_prompt_path,
+        system_prompt_filename=config.yaml_config.system_prompt_path,
     )
 
     visualizer = DefaultConversationVisualizer if config.verbose else None
-    
-    rendered_task = config.prompts.render_instance(args.task)
+    rendered_task = config.yaml_config.render_instance(args.task)
+
     conversation = LocalConversation(
         agent=agent,
         workspace=config.working_dir,
-        max_iteration_per_run=config.max_steps,
+        max_iteration_per_run=config.effective_max_steps,
         visualizer=visualizer,
     )
     try:

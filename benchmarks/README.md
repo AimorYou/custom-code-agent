@@ -25,20 +25,46 @@
 # Все задачи
 uv run python benchmarks/run_benchmark.py
 
-# Конкретная задача
+# Одна задача
 uv run python benchmarks/run_benchmark.py task_001
+
+# С логами агента (мысли, тул-коллы)
+uv run python benchmarks/run_benchmark.py --verbose task_001
+
+# Другая модель
+uv run python benchmarks/run_benchmark.py --model anthropic/claude-opus-4-6 task_001
+
+# Другой конфиг промптов
+uv run python benchmarks/run_benchmark.py --prompt-config custom.yaml task_001
+
+# Сохранить результаты в JSON
+uv run python benchmarks/run_benchmark.py --save results.json
 ```
 
-## Использование для тестирования агента
+## Как это работает
 
-1. Агент получает `issue.md` как описание проблемы
-2. Агент анализирует код в `src/`
-3. Агент фиксит баг
-4. Проверяем: `uv run python -m pytest tests/ -v` из директории задачи
+```
+run_benchmark.py
+  │
+  ├── 1. Копирует задачу во /tmp БЕЗ tests/
+  │      (агент физически не видит тесты)
+  │
+  ├── 2. Читает issue.md → передаёт агенту как task
+  │      (агент оборачивает через instance_template из agent_config.yaml)
+  │
+  ├── 3. Запускает агента: run.py --working-dir /tmp/... --quiet <issue>
+  │
+  ├── 4. Проверяет SUBMISSION.json (создаёт submit tool)
+  │      → агент явно сигнализирует завершение
+  │
+  └── 5. Копирует tests/ → pytest
+         → PASS/FAIL
+```
 
-Метрики для сбора:
+## Метрики для сбора
+
 - Потраченные токены (input/output)
-- Количество API-вызовов
-- Количество вызовов инструментов
+- Количество API-вызовов (steps)
 - Время до решения
-- Pass/Fail
+- Submitted / Not submitted
+- Pass / Fail
