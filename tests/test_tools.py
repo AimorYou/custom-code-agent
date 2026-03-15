@@ -109,38 +109,38 @@ def test_grep_ignore_case(repo_dir):
 
 
 # ---------------------------------------------------------------------------
-# SmartReadTool
+# SmartReaderTool
 # ---------------------------------------------------------------------------
 
-from agent.tools.smart_read import SmartReadAction, SmartReadTool
+from agent.tools.smart_reader import SmartReaderAction, SmartReaderTool
 
 
 @pytest.fixture
 def sample_file():
-    """Create a temporary file with 10 numbered lines."""
+    """Create a temporary file with 20 numbered lines."""
     with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
-        for i in range(1, 11):
+        for i in range(1, 21):
             f.write(f"line {i}\n")
         path = f.name
     yield path
     os.unlink(path)
 
 
-def _run_smart_read(**kwargs):
-    tool = SmartReadTool.create()[0]
-    action = SmartReadAction(**kwargs)
+def _run_smart_reader(**kwargs):
+    tool = SmartReaderTool.create()[0]
+    action = SmartReaderAction(**kwargs)
     return tool(action)
 
 
-def test_smart_read_full_file(sample_file):
-    obs = _run_smart_read(path=sample_file)
+def test_smart_reader_full_file(sample_file):
+    obs = _run_smart_reader(path=sample_file)
     assert not obs.is_error
-    for i in range(1, 11):
+    for i in range(1, 21):
         assert f"line {i}" in obs.text
 
 
-def test_smart_read_line_range(sample_file):
-    obs = _run_smart_read(path=sample_file, start_line=3, end_line=5)
+def test_smart_reader_line_range(sample_file):
+    obs = _run_smart_reader(path=sample_file, start_line=3, end_line=5)
     assert not obs.is_error
     assert "line 3" in obs.text
     assert "line 5" in obs.text
@@ -148,23 +148,199 @@ def test_smart_read_line_range(sample_file):
     assert "line 6" not in obs.text
 
 
-def test_smart_read_start_only(sample_file):
-    obs = _run_smart_read(path=sample_file, start_line=8)
+def test_smart_reader_start_only(sample_file):
+    obs = _run_smart_reader(path=sample_file, start_line=18)
     assert not obs.is_error
-    assert "line 8" in obs.text
-    assert "line 10" in obs.text
-    assert "line 7" not in obs.text
+    assert "line 18" in obs.text
+    assert "line 20" in obs.text
+    assert "line 17" not in obs.text
 
 
-def test_smart_read_missing_file():
-    obs = _run_smart_read(path="/nonexistent/file.py")
+def test_smart_reader_missing_file():
+    obs = _run_smart_reader(path="/nonexistent/file.py")
     assert obs.is_error
     assert "not found" in obs.text.lower()
 
 
-def test_smart_read_includes_line_numbers(sample_file):
-    obs = _run_smart_read(path=sample_file, start_line=1, end_line=3)
+def test_smart_reader_includes_line_numbers(sample_file):
+    obs = _run_smart_reader(path=sample_file, start_line=1, end_line=3)
     assert " | " in obs.text
+
+
+def test_smart_reader_focus_line(sample_file):
+    """focus_line=10 with context=3 should show lines 7-13."""
+    obs = _run_smart_reader(path=sample_file, focus_line=10, context=3)
+    assert not obs.is_error
+    assert "line 7" in obs.text
+    assert "line 10" in obs.text
+    assert "line 13" in obs.text
+    assert "line 6" not in obs.text
+    assert "line 14" not in obs.text
+
+
+def test_smart_reader_focus_line_at_start(sample_file):
+    """focus_line=1 with context=2 should show lines 1-3 (no negatives)."""
+    obs = _run_smart_reader(path=sample_file, focus_line=1, context=2)
+    assert not obs.is_error
+    assert "line 1" in obs.text
+    assert "line 3" in obs.text
+
+
+def test_smart_reader_truncation():
+    """Large file output should be truncated."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        for i in range(1, 2001):
+            f.write(f"{'x' * 50} line {i}\n")
+        path = f.name
+    try:
+        obs = _run_smart_reader(path=path)
+        assert "truncated" in obs.text.lower()
+    finally:
+        os.unlink(path)
+
+
+# ---------------------------------------------------------------------------
+# SmartEditorTool
+# ---------------------------------------------------------------------------
+
+from agent.tools.smart_editor import SmartEditorAction, _SmartEditorExecutor
+
+
+@pytest.fixture
+def editor_env():
+    """Create a temp dir with a test file and a fake conversation."""
+    with tempfile.TemporaryDirectory() as td:
+        test_path = os.path.join(td, "src", "module.py")
+        os.makedirs(os.path.dirname(test_path))
+        with open(test_path, "w") as f:
+            f.write("def add(a, b):\n    return a - b\n\ndef greet():\n    return 'hello'\n")
+
+        class _WS:
+            working_dir = td
+
+        class _Conv:
+            workspace = _WS()
+
+        executor = _SmartEditorExecutor()
+        yield td, executor, _Conv()
+
+
+def test_editor_replace(editor_env):
+    td, ex, conv = editor_env
+    obs = ex(SmartEditorAction(command="replace", path="src/module.py",
+                               old="return a - b", new="return a + b"), conv)
+    assert not obs.is_error
+    with open(os.path.join(td, "src/module.py")) as f:
+        assert "return a + b" in f.read()
+
+
+def test_editor_replace_ambiguous(editor_env):
+    _, ex, conv = editor_env
+    obs = ex(SmartEditorAction(command="replace", path="src/module.py",
+                               old="return", new="yield"), conv)
+    assert obs.is_error
+    assert "2 times" in obs.text
+
+
+def test_editor_replace_not_found(editor_env):
+    _, ex, conv = editor_env
+    obs = ex(SmartEditorAction(command="replace", path="src/module.py",
+                               old="nonexistent_string", new="x"), conv)
+    assert obs.is_error
+    assert "not found" in obs.text.lower()
+
+
+def test_editor_insert(editor_env):
+    td, ex, conv = editor_env
+    obs = ex(SmartEditorAction(command="insert", path="src/module.py",
+                               line=1, text='    """Add two numbers."""'), conv)
+    assert not obs.is_error
+    with open(os.path.join(td, "src/module.py")) as f:
+        content = f.read()
+    assert '"""Add two numbers."""' in content
+    # Original first line still present
+    assert "def add(a, b):" in content
+
+
+def test_editor_create(editor_env):
+    td, ex, conv = editor_env
+    obs = ex(SmartEditorAction(command="create", path="src/new.py",
+                               content="# new file\n"), conv)
+    assert not obs.is_error
+    assert os.path.exists(os.path.join(td, "src/new.py"))
+
+
+def test_editor_create_existing_fails(editor_env):
+    _, ex, conv = editor_env
+    obs = ex(SmartEditorAction(command="create", path="src/module.py",
+                               content="overwrite"), conv)
+    assert obs.is_error
+    assert "already exists" in obs.text.lower()
+
+
+def test_editor_delete(editor_env):
+    td, ex, conv = editor_env
+    obs = ex(SmartEditorAction(command="delete", path="src/module.py"), conv)
+    assert not obs.is_error
+    assert not os.path.exists(os.path.join(td, "src/module.py"))
+
+
+def test_editor_undo_replace(editor_env):
+    td, ex, conv = editor_env
+    ex(SmartEditorAction(command="replace", path="src/module.py",
+                         old="return a - b", new="return a + b"), conv)
+    obs = ex(SmartEditorAction(command="undo", path="src/module.py"), conv)
+    assert not obs.is_error
+    with open(os.path.join(td, "src/module.py")) as f:
+        assert "return a - b" in f.read()
+
+
+def test_editor_undo_nothing(editor_env):
+    _, ex, conv = editor_env
+    obs = ex(SmartEditorAction(command="undo"), conv)
+    assert obs.is_error
+    assert "nothing to undo" in obs.text.lower()
+
+
+def test_editor_patch(editor_env):
+    td, ex, conv = editor_env
+    patch = """\
+*** Begin Patch
+*** Update File: src/module.py
+@@
+-    return a - b
++    return a + b
+*** End Patch"""
+    obs = ex(SmartEditorAction(command="patch", diff=patch), conv)
+    assert not obs.is_error
+    with open(os.path.join(td, "src/module.py")) as f:
+        assert "return a + b" in f.read()
+
+
+def test_editor_path_outside_workdir(editor_env):
+    _, ex, conv = editor_env
+    obs = ex(SmartEditorAction(command="replace", path="../../etc/passwd",
+                               old="x", new="y"), conv)
+    assert obs.is_error
+    assert "outside" in obs.text.lower()
+
+
+# ---------------------------------------------------------------------------
+# SubmitTool
+# ---------------------------------------------------------------------------
+
+from agent.tools.submit import SubmitAction, _SubmitExecutor
+
+
+def test_submit_creates_json():
+    with tempfile.TemporaryDirectory() as td:
+        ex = _SubmitExecutor(working_dir=td)
+        obs = ex(SubmitAction(explanation="Fixed the bug"))
+        assert not obs.is_error
+        import json
+        data = json.loads(open(os.path.join(td, "SUBMISSION.json")).read())
+        assert data["submitted"] is True
+        assert data["explanation"] == "Fixed the bug"
 
 
 # ---------------------------------------------------------------------------
@@ -173,15 +349,12 @@ def test_smart_read_includes_line_numbers(sample_file):
 
 def test_custom_tools_registered():
     registered = list_registered_tools()
-    assert "smart_read" in registered
+    assert "smart_reader" in registered
+    assert "smart_editor" in registered
     assert "bash" in registered
+    assert "bash_session" in registered
     assert "grep" in registered
-
-
-def test_terminal_tool_registered():
-    from openhands.tools.terminal.definition import TerminalTool  # noqa: F401
-    registered = list_registered_tools()
-    assert "terminal" in registered
+    assert "submit" in registered
 
 
 # ---------------------------------------------------------------------------

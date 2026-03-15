@@ -22,20 +22,20 @@
 ## Запуск
 
 ```bash
-# Все задачи
+# Все задачи (логи агента по умолчанию)
 uv run python benchmarks/run_benchmark.py
 
 # Одна задача
 uv run python benchmarks/run_benchmark.py task_001
 
-# С логами агента (мысли, тул-коллы)
-uv run python benchmarks/run_benchmark.py --verbose task_001
+# Без логов
+uv run python benchmarks/run_benchmark.py --quiet task_001
 
 # Другая модель
 uv run python benchmarks/run_benchmark.py --model anthropic/claude-opus-4-6 task_001
 
-# Другой конфиг промптов
-uv run python benchmarks/run_benchmark.py --prompt-config custom.yaml task_001
+# Другой конфиг
+uv run python benchmarks/run_benchmark.py --agent-config custom.yaml task_001
 
 # Сохранить результаты в JSON
 uv run python benchmarks/run_benchmark.py --save results.json
@@ -52,12 +52,14 @@ run_benchmark.py
   ├── 2. Читает issue.md → передаёт агенту как task
   │      (агент оборачивает через instance_template из agent_config.yaml)
   │
-  ├── 3. Запускает агента: run.py --working-dir /tmp/... --quiet <issue>
+  ├── 3. Запускает агента: run.py --working-dir /tmp/... <issue>
   │
   ├── 4. Проверяет SUBMISSION.json (создаёт submit tool)
   │      → агент явно сигнализирует завершение
   │
-  └── 5. Копирует tests/ → pytest
+  ├── 5. Читает METRICS.json (steps, tokens, cost)
+  │
+  └── 6. Копирует tests/ → pytest
          → PASS/FAIL
 ```
 
