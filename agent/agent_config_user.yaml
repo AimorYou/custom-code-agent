@@ -1,0 +1,23 @@
+agent:
+  # Jinja2 system prompt template (relative to agent/prompts/)
+  system_template: "system_prompt.j2"
+
+  # Template for formatting the task/issue for the agent.
+  # Available variables: {{task}}
+  instance_template: "{{task}}"
+
+  # Max steps before the agent is stopped
+  step_limit: 50
+
+  # Max cost in USD before the agent is stopped (0 = unlimited)
+  cost_limit: 0
+
+  # Whitelist of tools available to the agent.
+  # User mode: full toolset including persistent shell session, think and finish.
+  tools:
+    - bash_session
+    - bash
+    - grep
+    - smart_read
+    - think
+    - finish

@@ -29,3 +29,11 @@ agent:
 
   # Max cost in USD before the agent is stopped (0 = unlimited)
   cost_limit: 0
+
+  # Whitelist of tools available to the agent.
+  # SWE-bench mode: no think/finish — agent works through bash, grep, smart_read, submit.
+  tools:
+    - bash
+    - grep
+    - smart_read
+    - submit

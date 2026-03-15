@@ -11,8 +11,9 @@ Two sources of config, each with a clear responsibility:
 agent_config.yaml (agent behavior):
     system_template, instance_template — prompt templates
     step_limit — max agent steps
+    tools — whitelist of enabled tools
 
-Everything else (working_dir, verbose, disabled_tools) comes from CLI args.
+Everything else (working_dir, verbose) comes from CLI args.
 """
 
 import os
@@ -29,6 +30,12 @@ _AGENT_DIR = Path(__file__).resolve().parent
 _DEFAULT_CONFIG = _AGENT_DIR / "agent_config.yaml"
 _PROMPTS_DIR = _AGENT_DIR / "prompts"
 
+# SDK built-in tools that are controlled via Agent(include_default_tools=...)
+_SDK_BUILTIN_TOOLS = {"think": "ThinkTool", "finish": "FinishTool"}
+
+# Default tool set when nothing is specified in config
+_DEFAULT_TOOLS = ["bash", "bash_session", "grep", "smart_read", "submit", "think", "finish"]
+
 
 def _resolve_api_key() -> str | None:
     """Resolve API key from environment."""
@@ -43,6 +50,7 @@ class AgentYamlConfig:
     instance_template: str = "{{task}}"
     step_limit: int = 30
     cost_limit: float = 0
+    tools: list[str] = field(default_factory=lambda: list(_DEFAULT_TOOLS))
 
     @classmethod
     def load(cls, path: str | Path | None = None) -> "AgentYamlConfig":
@@ -57,6 +65,7 @@ class AgentYamlConfig:
             instance_template=agent_cfg.get("instance_template", cls.instance_template),
             step_limit=agent_cfg.get("step_limit", cls.step_limit),
             cost_limit=agent_cfg.get("cost_limit", cls.cost_limit),
+            tools=agent_cfg.get("tools", list(_DEFAULT_TOOLS)),
         )
 
     @property
@@ -67,6 +76,20 @@ class AgentYamlConfig:
     def render_instance(self, task: str) -> str:
         """Render the instance template with the given task text."""
         return self.instance_template.replace("{{task}}", task)
+
+    @property
+    def custom_tool_names(self) -> list[str]:
+        """Tool names that need Tool(name=...) instances (non-SDK-builtin)."""
+        return [t for t in self.tools if t not in _SDK_BUILTIN_TOOLS]
+
+    @property
+    def include_default_tools(self) -> list[str]:
+        """SDK class names for built-in tools that should be included."""
+        return [
+            _SDK_BUILTIN_TOOLS[t]
+            for t in self.tools
+            if t in _SDK_BUILTIN_TOOLS
+        ]
 
 
 @dataclass
@@ -89,7 +112,6 @@ class AgentConfig:
     max_steps: int | None = None  # None = use yaml_config.step_limit
     working_dir: str = field(default_factory=lambda: os.path.abspath("."))
     verbose: bool = True
-    disabled_tools: list[str] = field(default_factory=list)
 
     @property
     def effective_max_steps(self) -> int:

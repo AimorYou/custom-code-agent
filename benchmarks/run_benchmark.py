@@ -5,14 +5,14 @@ SWE-Bench-style benchmark runner.
 ждёт пока агент вызовет submit, затем прогоняет тесты.
 
 Промпт формируется агентом — runner только передаёт текст issue.md.
-Шаблоны промптов живут в agent/prompt_config.yaml и agent/prompts/.
+Шаблоны промптов живут в agent/agent_config.yaml и agent/prompts/.
 
 Usage:
     uv run python benchmarks/run_benchmark.py                          # все задачи
     uv run python benchmarks/run_benchmark.py task_003                 # одна задача
     uv run python benchmarks/run_benchmark.py --model anthropic/claude-opus-4-6 task_001
-    uv run python benchmarks/run_benchmark.py --verbose task_001
-    uv run python benchmarks/run_benchmark.py --prompt-config custom.yaml task_001
+    uv run python benchmarks/run_benchmark.py --quiet task_001
+    uv run python benchmarks/run_benchmark.py --agent-config custom.yaml task_001
 """
 
 import argparse
@@ -41,7 +41,7 @@ def run_agent(
     issue_text: str,
     model: str | None,
     max_steps: int,
-    prompt_config: str | None,
+    agent_config: str | None,
     verbose: bool = False,
 ) -> dict:
     """Запускаем агента через run.py — всё через CLI аргументы."""
@@ -50,8 +50,8 @@ def run_agent(
     cmd += ["--max-steps", str(max_steps)]
     if model:
         cmd += ["--model", model]
-    if prompt_config:
-        cmd += ["--prompt-config", prompt_config]
+    if agent_config:
+        cmd += ["--agent-config", agent_config]
     if not verbose:
         cmd.append("--quiet")
     cmd.append(issue_text)
@@ -104,31 +104,28 @@ def run_tests(task_dir: Path, workspace: Path) -> dict:
     }
 
 
-def extract_token_summary(stdout: str) -> dict:
-    """Парсим Token Usage Summary из вывода агента."""  # FIXME: Не работает
-    summary = {}
-    for line in stdout.splitlines():
-        line = line.strip()
-        if "│" in line:
-            parts = [p.strip() for p in line.split("│")]
-            if len(parts) >= 2:
-                key, value = parts[0], parts[1]
-                if key == "Steps":
-                    summary["steps"] = int(value)
-                elif key == "Input tokens":
-                    summary["input_tokens"] = int(value.replace(",", ""))
-                elif key == "Output tokens":
-                    summary["output_tokens"] = int(value.replace(",", ""))
-                elif key == "Estimated cost":
-                    summary["cost_usd"] = value
-    return summary
+def read_metrics(workspace: Path) -> dict:
+    """Read METRICS.json written by run.py after agent finishes."""
+    metrics_path = workspace / "METRICS.json"
+    if not metrics_path.exists():
+        return {}
+    try:
+        data = json.loads(metrics_path.read_text())
+        return {
+            "steps": data.get("steps", 0),
+            "input_tokens": data.get("total_input_tokens", 0),
+            "output_tokens": data.get("total_output_tokens", 0),
+            "cost_usd": f"${data.get('total_cost_usd', 0):.4f}",
+        }
+    except (json.JSONDecodeError, KeyError):
+        return {}
 
 
 def run_single_task(
     task_dir: Path,
     model: str | None,
     max_steps: int,
-    prompt_config: str | None,
+    agent_config: str | None,
     verbose: bool = False,
 ) -> dict:
     """Полный цикл для одной задачи."""
@@ -137,7 +134,7 @@ def run_single_task(
         issue_text = (task_dir / "issue.md").read_text()
 
         print(f"  Running agent...")
-        agent_result = run_agent(workspace, issue_text, model, max_steps, prompt_config, verbose)
+        agent_result = run_agent(workspace, issue_text, model, max_steps, agent_config, verbose)
 
         print(f"  Agent finished in {agent_result['elapsed_seconds']}s, "
               f"submitted={agent_result['submitted']}")
@@ -151,7 +148,7 @@ def run_single_task(
         passed = test_result["tests_passed"]
         print(f"  Tests: {'PASS' if passed else 'FAIL'}")
 
-        tokens = extract_token_summary(agent_result["stdout"])
+        tokens = read_metrics(workspace)
 
         return {
             "task": task_dir.name,
@@ -169,8 +166,8 @@ def main():
     parser.add_argument("filter", nargs="?", help="Task name filter (e.g. task_001)")
     parser.add_argument("--model", help="Model override (e.g. anthropic/claude-opus-4-6)")
     parser.add_argument("--max-steps", type=int, default=30, help="Max agent steps (default: 30)")
-    parser.add_argument("--prompt-config", help="Path to prompt config YAML override")
-    parser.add_argument("--verbose", action="store_true", help="Show agent thoughts and tool calls")
+    parser.add_argument("--agent-config", help="Path to agent config YAML override")
+    parser.add_argument("--quiet", action="store_true", help="Suppress agent thoughts and tool calls")
     parser.add_argument("--save", help="Save results to JSON file")
     args = parser.parse_args()
 
@@ -189,7 +186,7 @@ def main():
         print(f"{'='*60}")
         print(f"Task: {task_dir.name}")
         print(f"{'='*60}")
-        r = run_single_task(task_dir, args.model, args.max_steps, args.prompt_config, args.verbose)
+        r = run_single_task(task_dir, args.model, args.max_steps, args.agent_config, not args.quiet)
         results.append(r)
         print()
 

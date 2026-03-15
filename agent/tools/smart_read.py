@@ -7,6 +7,7 @@ SmartReadTool — читает файл с опциональным диапаз
   фрагмент — например, строки 50-80 — сокращая расход токенов на больших файлах.
 """
 
+import os
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -51,8 +52,17 @@ class _SmartReadExecutor(ToolExecutor):
         action: SmartReadAction,
         conversation: "LocalConversation | None" = None,
     ) -> Observation:
+        # Resolve relative paths against workspace (like bash/grep/submit do)
+        path = action.path
+        if not os.path.isabs(path) and conversation is not None:
+            working_dir = getattr(
+                getattr(conversation, "workspace", None), "working_dir", None
+            )
+            if working_dir:
+                path = os.path.join(working_dir, path)
+
         try:
-            with open(action.path, encoding="utf-8", errors="replace") as f:
+            with open(path, encoding="utf-8", errors="replace") as f:
                 lines = f.readlines()
         except FileNotFoundError:
             return SmartReadObservation.from_text(f"File not found: {action.path}", is_error=True)
