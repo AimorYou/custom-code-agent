@@ -3,6 +3,8 @@ SubmitTool — агент вызывает этот инструмент, ког
 
 Записывает SUBMISSION.json в рабочую директорию с описанием того, что было сделано.
 Бенчмарк-раннер проверяет наличие этого файла как сигнал завершения.
+
+После вызова submit conversation loop останавливается (execution_status = FINISHED).
 """
 
 import json
@@ -24,7 +26,7 @@ Submit your solution when you have finished fixing the bug.
 Call this tool ONCE when you are confident that the bug described in the issue
 has been fixed. Provide a short explanation of what you changed and why.
 
-After calling this tool, stop working — do not make any further changes.
+This tool stops the agent — no further actions will be executed after submission.
 """
 
 
@@ -57,8 +59,13 @@ class _SubmitExecutor(ToolExecutor):
         with open(path, "w") as f:
             json.dump(submission, f, indent=2)
 
+        # Signal the conversation loop to stop
+        if conversation is not None:
+            from openhands.sdk.conversation.state import ConversationExecutionStatus
+            conversation._state.execution_status = ConversationExecutionStatus.≈
+
         return SubmitObservation.from_text(
-            "Submission recorded. You may now stop — no further actions needed."
+            "Submission recorded. Agent stopped."
         )
 
 
