@@ -1,37 +1,15 @@
-# Feature + Bug: CLI does not support batch mode
+# Support processing entire directories
 
-## Description
+Right now `fileproc` only works with a single file at a time, which makes it pretty tedious when you have a directory full of reports to process. It would be really helpful to have a `--batch` flag that accepts a directory path and processes everything in it.
 
-The CLI tool currently processes one input file at a time.  We want to add a
-**batch mode** where the CLI accepts a directory and processes every supported
-file in it.
+Something like:
 
-## Expected behavior
-
-`cli.py` should accept a `--batch` flag.  When enabled, the `input` argument
-is treated as a **directory** and every file with a supported extension
-(`.txt`, `.csv`) inside it should be processed.
-
-Results should be returned as a dict mapping each filename to its processed
-output, e.g.:
-
-```python
-{
-    "a.txt": "PROCESSED: contents of a",
-    "b.csv": "PROCESSED: contents of b",
-}
+```bash
+fileproc --batch ./reports/
 ```
 
-## Notes
+The output should be a mapping of each file to its processed result.
 
-- `processor.py` already has a `process_file(path)` function that works for
-  single files.
-- `file_utils.py` contains `list_supported_files(directory)` which should
-  return only files with supported extensions — but it currently has a bug
-  that causes it to return **all** files regardless of extension.
-- The CLI parsing in `cli.py` needs a new `--batch` flag and corresponding
-  logic.
+One other thing I noticed while trying to work around this manually — I wrote a small script that used `list_supported_files()` to grab `.txt` and `.csv` files from a folder, but it seemed to pick up everything in the directory including `.log` and `.tmp` files. Not sure if that's intentional or a separate issue, but it caused `process_file` to choke on formats it doesn't understand.
 
-## Tests currently failing in
-
-`tests/test_cli_batch.py`
+Would be great to get the batch flag added and that file listing thing sorted out. Happy to test once there's a branch to look at.

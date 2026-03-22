@@ -20,9 +20,6 @@ class MiddlewareChain:
     """
 
     def __init__(self):
-        # BUG: No lock — adding middleware while another thread is
-        # iterating _middlewares in execute() causes IndexError or
-        # skipped middleware.
         self._middlewares: List[Callable] = []
 
     def add(self, middleware: Callable) -> None:
@@ -35,16 +32,11 @@ class MiddlewareChain:
         Builds a nested call: mw0(event, mw1(event, mw2(event, final)))
         """
         chain = final
-        # BUG: iterating self._middlewares without a snapshot — if
-        # another thread calls add() during this loop, length can change
-        # and we get IndexError or skip newly-added middleware.
         for mw in reversed(self._middlewares):
             prev = chain
             chain = lambda evt, _mw=mw, _next=prev: _mw(evt, _next)
         return chain(event)
 
-
-# ------------------------------------------------------------------ built-in middleware
 
 class LoggingMiddleware:
     """Logs event name before and after processing."""

@@ -8,18 +8,18 @@
 
 ## Задачи
 
-| # | Задача | Баг | Файл(ы) | Сложность |
-|---|--------|-----|---------|-----------|
-| 1 | `task_001_timeseries` | Off-by-one в `rolling_mean` | `src/timeseries.py` | Medium |
-| 2 | `task_002_cache_invalidation` | `invalidate()` не удаляет из кэша | `src/cache.py` | Medium |
-| 3 | `task_003_json_config` | Нет поддержки JSON конфигов | `src/config_loader.py` | Medium |
-| 4 | `task_004_cli_batch` | Нет `--batch` флага + фильтрация файлов | `src/cli.py`, `src/file_utils.py` | Medium |
-| 5 | `task_005_log_sorting` | Timezone-naive парсинг | `src/time_utils.py` | Medium-Hard |
-| 6 | `task_006_async_pipeline` | `asyncio.gather` ordering | `src/loader.py` | Hard |
-| 7 | `task_007_plugin_system` | Import path + instance bugs | `src/plugin_loader.py`, `src/plugin_registry.py` | Hard |
-| 8 | `task_008_eventbus_race` | Race condition: no locks в registry/middleware | `src/eventbus/handlers.py`, `middleware.py`, `bus.py` | Hard |
-| 9 | `task_009_orm_query_planner` | Table prefix в exclude/order_by после join | `src/litemap/query.py` | Hard |
-| 10 | `task_010_config_merger` | Потеря хвоста списков + shallow diff >2 уровней | `src/confmerge/merge.py`, `diff.py`, `patch.py` | Hard |
+| # | Задача | Тема | Сложность |
+|---|--------|------|-----------|
+| 1 | `task_001_timeseries` | Timeseries rolling window | Medium |
+| 2 | `task_002_cache_invalidation` | LRU cache invalidation | Medium |
+| 3 | `task_003_json_config` | Config loader (feature) | Medium |
+| 4 | `task_004_cli_batch` | CLI batch mode (feature + bug) | Medium |
+| 5 | `task_005_log_sorting` | Log aggregation / timezone | Medium-Hard |
+| 6 | `task_006_async_pipeline` | Async pipeline ordering | Hard |
+| 7 | `task_007_plugin_system` | Dynamic plugin discovery | Hard |
+| 8 | `task_008_eventbus_race` | Thread safety / race condition | Hard |
+| 9 | `task_009_orm_query_planner` | ORM query builder / SQL joins | Hard |
+| 10 | `task_010_config_merger` | Deep merge / diff / patch | Hard |
 
 ## Зависимости
 
@@ -75,7 +75,7 @@ run_benchmark.py
 | | `tests/` | `gold_tests/` |
 |---|----------|---------------|
 | Видимость | Агент видит и может запускать | Скрыты от агента |
-| Состояние на багнутом коде | **Проходят** ✅ | **Падают** ❌ |
+| Состояние на багнутом коде | **Проходят** | **Падают** |
 | Назначение | Понимание кодовой базы | Оценка правильности фикса |
 | Аналог в SWE-Bench | Existing tests | FAIL_TO_PASS tests |
 

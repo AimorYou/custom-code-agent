@@ -1,10 +1,4 @@
-"""Gold tests — concurrent access to EventBus.
-
-These tests FAIL on the buggy code due to race conditions in
-HandlerRegistry and MiddlewareChain.  We test both:
-1. Direct locking bugs via unit-level tests that simulate concurrent mutation
-2. High-contention stress tests that trigger RuntimeError on dict mutation
-"""
+"""Tests for concurrent access to EventBus."""
 import threading
 import time
 from unittest.mock import patch
@@ -12,9 +6,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import pytest
 
-from src.eventbus import EventBus, Event
-from src.eventbus.handlers import HandlerRegistry
-from src.eventbus.middleware import MiddlewareChain
+from src import EventBus, Event
+from src.handlers import HandlerRegistry
+from src.middleware import MiddlewareChain
 
 
 # ================================================================== Unit tests

@@ -17,12 +17,7 @@ def compute_diff(
     """Return a list of diff entries describing changes from *old* to *new*.
 
     Recursively walks both dicts.  For nested dicts, produces granular
-    per-key diffs **at all depths**.
-
-    .. note::
-        BUG — the recursive call only goes one level deep.  For dicts
-        nested deeper than 2 levels the function emits a single "changed"
-        entry for the whole sub-tree instead of drilling down.
+    per-key diffs at all depths.
     """
     entries: list[DiffEntry] = []
     _diff_recurse(old, new, "", entries)
@@ -43,13 +38,10 @@ def _diff_recurse(
         elif key not in new:
             entries.append({"op": "removed", "path": path, "old": copy.deepcopy(old[key])})
         elif old[key] != new[key]:
-            # BUG: should check isinstance(old[key], dict) and isinstance(new[key], dict)
-            # and recurse further.  Instead, it treats the entire subtree as
-            # a flat "changed" value when depth > 1 (prefix already has a dot).
             if (
                 isinstance(old[key], dict)
                 and isinstance(new[key], dict)
-                and "." not in prefix   # ← BUG: this prevents recursion beyond depth 1
+                and "." not in prefix
             ):
                 _diff_recurse(old[key], new[key], path, entries)
             else:

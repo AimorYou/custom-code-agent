@@ -11,20 +11,12 @@ from .middleware import MiddlewareChain
 
 
 class EventBus:
-    """In-process event bus with middleware and priority support.
-
-    Thread-safety contract (currently **broken**):
-    - ``subscribe()`` and ``emit()`` SHOULD be safe to call from
-      different threads concurrently, but they are NOT because neither
-      the handler registry nor the middleware chain use any locking.
-    """
+    """In-process event bus with middleware and priority support."""
 
     def __init__(self):
         self._registry = HandlerRegistry()
         self._middleware = MiddlewareChain()
         self._history: List[Event] = []
-
-    # ---------------------------------------------------------------- public
 
     def subscribe(
         self,
@@ -48,9 +40,6 @@ class EventBus:
 
         def _run_handlers(evt: Event) -> list[Any]:
             results = []
-            # BUG: iterating `handlers` which is built from a live list —
-            # a concurrent subscribe() can cause the underlying list to
-            # change mid-iteration.
             for h in handlers:
                 results.append(h(evt))
             return results

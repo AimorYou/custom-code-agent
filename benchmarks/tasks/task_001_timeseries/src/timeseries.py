@@ -28,7 +28,7 @@ def rolling_mean(data: np.ndarray, window: int) -> np.ndarray:
     result = np.full(n, np.nan)
 
     for i in range(window - 1, n):
-        start = i - window  # BUG: should be i - window + 1
+        start = i - window
         result[i] = np.mean(data[start:i + 1])
 
     return result

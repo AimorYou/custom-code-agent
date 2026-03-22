@@ -1,34 +1,63 @@
-# Task 006 — Cache Invalidation
+# cachebox
 
-| Свойство | Значение |
-|---|---|
-| **Тип** | bugfix |
-| **Сложность** | medium |
-| **Файлы с багом** | `src/cache.py` |
-| **Связанные файлы** | `src/storage.py`, `src/service.py` |
-| **Тесты (visible)** | `tests/test_cache_invalidation.py` |
-| **Gold-тесты** | `gold_tests/test_cache_invalidation.py` |
+A lightweight LRU cache with a pluggable storage backend and a service layer that ties them together. Designed for applications that need a simple caching strategy in front of a key-value store.
 
-## Описание
+## Installation
 
-LRU-кэш возвращает устаревшие данные после обновления через `DataService.set()`.
-Метод `service.set()` корректно вызывает `cache.invalidate(key)`, но сам
-`invalidate()` в `cache.py` содержит баг — он не удаляет значение из
-внутреннего словаря (`pass` вместо `del`).
+No external dependencies. Just copy the `src/` directory into your project.
 
-Агент должен проследить цепочку вызовов через три файла:
-`service.py` → `cache.py` → найти пустой `invalidate()`.
+## Quick start
 
-## Запуск тестов
+```python
+from src.service import DataService
 
-```bash
-cd benchmarks/tasks/task_006_cache_invalidation
-python -m pytest tests/ -v          # existing (pass on buggy code)
-python -m pytest gold_tests/ -v     # gold (fail on buggy code)
+svc = DataService()
+
+svc.set("user:1", {"name": "Alice", "role": "admin"})
+print(svc.get("user:1"))  # {'name': 'Alice', 'role': 'admin'}
+
+svc.set("user:1", {"name": "Alice", "role": "editor"})
+print(svc.get("user:1"))  # updated value
 ```
 
-## Что проверяет
+## Module overview
 
-- Multi-file reasoning
-- Чтение и использование инструментов (grep, reader)
-- Bugfix в неочевидном месте
+### `cache.py` -- LRU cache
+
+`LRUCache` is an in-memory least-recently-used cache built on top of `OrderedDict`.
+
+```python
+from src.cache import LRUCache
+
+cache = LRUCache(capacity=256)
+cache.put("key", "value")
+cache.get("key")        # "value"
+cache.invalidate("key") # remove from cache
+cache.clear()           # drop everything
+```
+
+### `storage.py` -- Storage backend
+
+`Storage` is a simple key-value store that acts as the persistent layer.
+
+```python
+from src.storage import Storage
+
+store = Storage()
+store.set("key", "value")
+store.get("key")  # "value"
+```
+
+### `service.py` -- Service layer
+
+`DataService` combines the cache and storage into a single interface. Reads go through the cache first; writes update storage and invalidate the cache.
+
+## Running tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+## License
+
+MIT

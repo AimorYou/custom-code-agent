@@ -1,8 +1,4 @@
-"""Configuration file loader.
-
-Currently supports YAML files only.  JSON support is requested but not yet
-implemented — the stub raises ``ValueError`` for ``.json`` files.
-"""
+"""Configuration file loader with YAML and JSON support."""
 
 import os
 
@@ -38,7 +34,6 @@ def load_config(path: str) -> dict:
         with open(path, "r") as fh:
             raw = yaml.safe_load(fh) or {}
     elif ext == ".json":
-        # TODO: implement JSON loading
         raise ValueError(f"JSON config loading is not implemented yet: {path}")
     else:
         raise ValueError(f"Unsupported config format: {ext}")

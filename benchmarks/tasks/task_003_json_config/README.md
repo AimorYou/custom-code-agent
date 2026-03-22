@@ -1,34 +1,62 @@
-# Task 007 — JSON Config
+# confloader
 
-| Свойство | Значение |
-|---|---|
-| **Тип** | feature |
-| **Сложность** | medium |
-| **Файлы для изменения** | `src/config_loader.py` |
-| **Связанные файлы** | `src/utils.py`, `src/app.py` |
-| **Тесты (visible)** | `tests/test_config_loader.py` |
-| **Gold-тесты** | `gold_tests/test_config_loader.py` |
+A lightweight configuration file loader for Python applications. Reads YAML and JSON config files, applies sensible defaults, and validates the result.
 
-## Описание
-
-Загрузчик конфигурации поддерживает только YAML. Нужно добавить поддержку
-JSON-файлов. Ветка `.json` в `load_config()` содержит заглушку
-`raise ValueError(...)` вместо реального парсинга.
-
-Агент должен: добавить `import json`, заменить `raise` на `json.load()`,
-убедиться что `merge_defaults()` и `validate_config()` из `utils.py` по-прежнему
-вызываются.
-
-## Запуск тестов
+## Installation
 
 ```bash
-cd benchmarks/tasks/task_007_json_config
-python -m pytest tests/ -v          # existing (pass on buggy code)
-python -m pytest gold_tests/ -v     # gold (fail on buggy code)
+pip install confloader
 ```
 
-## Что проверяет
+## Quick start
 
-- Feature addition
-- Изменение существующего API
-- Интеграция с существующими утилитами
+```python
+from confloader import load_config
+
+config = load_config("config/app.yaml")
+print(config["database"]["host"])
+```
+
+## Supported formats
+
+| Format | Extensions        |
+|--------|-------------------|
+| YAML   | `.yaml`, `.yml`   |
+| JSON   | `.json`           |
+
+## API
+
+### `load_config(path: str) -> dict`
+
+Loads a configuration file from the given path. The format is detected automatically based on the file extension.
+
+The returned dictionary has default values merged in and is validated against the expected schema. Raises `ValueError` for unsupported file extensions and `FileNotFoundError` if the path does not exist.
+
+```python
+# YAML config
+config = load_config("settings.yaml")
+
+# JSON config
+config = load_config("settings.json")
+```
+
+## Default values
+
+If your config file omits certain keys, `confloader` fills them in from a built-in defaults template. This means you only need to specify the values you want to override.
+
+## Validation
+
+After merging defaults, the configuration is validated to ensure required fields are present and values have the correct types. Invalid configs raise a `ValueError` with a descriptive message.
+
+## Development
+
+```bash
+git clone https://github.com/yourorg/confloader.git
+cd confloader
+pip install -e ".[dev]"
+python -m pytest tests/ -v
+```
+
+## License
+
+MIT

@@ -1,15 +1,11 @@
-"""Existing tests for EventBus — single-threaded functionality.
-
-All tests here pass on the current (buggy) code because they do
-not exercise concurrent access.
-"""
+"""Tests for EventBus — core functionality."""
 import asyncio
 
 import pytest
 
-from src.eventbus import EventBus, Event, PriorityEvent
-from src.eventbus import LoggingMiddleware, RetryMiddleware, TimeoutMiddleware
-from src.eventbus.serialization import serialize_event, deserialize_event
+from src import EventBus, Event, PriorityEvent
+from src import LoggingMiddleware, RetryMiddleware, TimeoutMiddleware
+from src.serialization import serialize_event, deserialize_event
 
 
 # ------------------------------------------------------------------ basic

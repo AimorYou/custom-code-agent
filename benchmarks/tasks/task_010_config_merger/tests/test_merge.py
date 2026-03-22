@@ -1,17 +1,11 @@
-"""Existing tests for confmerge — simple cases that work correctly.
-
-These tests pass on the buggy code because they don't exercise:
-- list merge with dict elements of different lengths
-- diff on deeply nested (>2 levels) structures
-- patch with collapsed subtree diffs
-"""
+"""Tests for confmerge — merge, diff, patch, and schema validation."""
 import os
 import tempfile
 
 import pytest
 
-from src.confmerge import load_config, dump_config, deep_merge, compute_diff
-from src.confmerge import apply_patch, validate
+from src import load_config, dump_config, deep_merge, compute_diff
+from src import apply_patch, validate
 
 
 # ------------------------------------------------------------------ loader

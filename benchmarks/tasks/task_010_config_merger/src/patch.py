@@ -17,11 +17,6 @@ def apply_patch(
     Supports ``added``, ``removed``, and ``changed`` operations.
     Paths use dot-notation (e.g. ``"database.host"``).
 
-    .. note::
-        BUG — when a "changed" entry contains a full subtree (because
-        ``compute_diff`` collapsed it), this function replaces the
-        **entire** nested dict at that path, wiping out sibling keys
-        that were not changed.
     """
     result = copy.deepcopy(config)
     for entry in diff:
@@ -33,9 +28,6 @@ def apply_patch(
         elif op == "removed":
             _del_nested(result, path_parts)
         elif op == "changed":
-            # BUG: blindly sets the value at path, which when the diff
-            # is a collapsed subtree, overwrites the entire nested dict
-            # instead of merging only the changed leaf keys.
             _set_nested(result, path_parts, entry["value"])
     return result
 

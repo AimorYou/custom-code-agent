@@ -23,20 +23,14 @@ def register_plugin(name: str):
                 ...
     """
     def decorator(cls: Type) -> Type:
-        _registry[name] = cls          # stores the **class**, not an instance
+        _registry[name] = cls
         return cls
     return decorator
 
 
 def get_plugin(name: str) -> Any:
-    """Return the plugin registered under *name*.
-
-    .. note::
-        BUG — returns the **class** object, not an instance.  Callers
-        (including ``App.run_plugin``) expect a ready-to-use instance
-        with an ``execute()`` method.
-    """
-    return _registry.get(name)         # ← should return cls() not cls
+    """Return the plugin registered under *name*."""
+    return _registry.get(name)
 
 
 def list_plugins() -> list[str]:

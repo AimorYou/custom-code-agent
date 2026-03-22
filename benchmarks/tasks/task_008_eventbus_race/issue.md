@@ -1,50 +1,54 @@
-# Race condition при concurrent emit + subscribe
+# RuntimeError and missed handlers when using EventBus from multiple threads
 
-## Что происходит
+## What's happening
 
-При одновременном вызове `bus.emit()` и `bus.subscribe()` из разных тредов:
+We started using the event bus from worker threads in our job processing pipeline (one thread subscribes handlers dynamically, others emit events), and we're seeing intermittent crashes in production.
 
-1. Иногда хэндлер **не вызывается**, хотя подписка прошла до `emit()` (по wall clock).
-2. Иногда — `RuntimeError: dictionary changed size during iteration` в `HandlerRegistry.get_handlers()`.
-3. Middleware chain тоже не потокобезопасна — при добавлении middleware во время обработки события падает с `IndexError`.
+The most common error is:
 
-## Как воспроизвести
+```
+RuntimeError: dictionary changed size during iteration
+```
+
+This happens somewhere in the handler dispatch path. We've also seen `IndexError` a few times, which seems related to the middleware chain, and occasionally handlers just silently don't fire even though they were definitely subscribed before the emit call.
+
+## How to reproduce
+
+It's timing-dependent, but this reliably triggers it within a few runs:
 
 ```python
 import threading
-from src.eventbus import EventBus, Event
+from src import EventBus, Event
 
 bus = EventBus()
 results = []
-bus.subscribe("test", lambda e: results.append(1))
+bus.subscribe("task", lambda e: results.append(1))
 
-# 100 тредов одновременно subscribe + emit
 barrier = threading.Barrier(200)
 
-def subscribe_thread():
+def subscribe_loop():
     barrier.wait()
-    bus.subscribe("test", lambda e: None)
+    bus.subscribe("task", lambda e: None)
 
-def emit_thread():
+def emit_loop():
     barrier.wait()
-    bus.emit(Event(name="test"))
+    bus.emit(Event(name="task"))
 
-threads = [threading.Thread(target=subscribe_thread) for _ in range(100)]
-threads += [threading.Thread(target=emit_thread) for _ in range(100)]
-for t in threads: t.start()
-for t in threads: t.join()
+threads = [threading.Thread(target=subscribe_loop) for _ in range(100)]
+threads += [threading.Thread(target=emit_loop) for _ in range(100)]
+for t in threads:
+    t.start()
+for t in threads:
+    t.join()
 
-# Ожидаем len(results) == 100, но часто меньше или RuntimeError
+# Expected: len(results) == 100
+# Actual: sometimes fewer, sometimes RuntimeError
 ```
 
-## Что ожидается
+Adding middleware at runtime (e.g., enabling a logging middleware via an admin endpoint) also causes crashes if events are being processed at the same time.
 
-- `subscribe()`, `emit()`, и `bus.use()` должны быть потокобезопасны.
-- Хэндлеры, подписанные до emit, всегда вызываются.
-- Добавление middleware во время обработки событий не должно вызывать crash.
+## Expected behavior
 
-## Затронутые файлы
-
-- `src/eventbus/handlers.py` — `HandlerRegistry` не защищён блокировками
-- `src/eventbus/middleware.py` — `MiddlewareChain.execute()` итерирует `_middlewares` без снэпшота
-- `src/eventbus/bus.py` — `EventBus.emit()` и `EventBus.subscribe()` вызывают незащищённые методы
+- `subscribe()`, `emit()`, and `use()` should be safe to call concurrently from different threads.
+- A handler that was subscribed before an `emit()` call should always be invoked.
+- Adding middleware while events are being processed should not crash.

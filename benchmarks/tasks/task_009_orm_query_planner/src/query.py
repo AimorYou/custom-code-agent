@@ -53,8 +53,6 @@ class QuerySet:
     def order_by(self, *fields: str) -> "QuerySet":
         qs = self._clone()
         for f in fields:
-            # BUG: does not add table prefix when a join is active,
-            # so ambiguous column names cause "ambiguous column name" error.
             if f.startswith("-"):
                 qs._order_by.append(f"{f[1:]} DESC")
             else:
@@ -117,9 +115,6 @@ class QuerySet:
             params.append(p)
 
         # WHERE NOT (excludes)
-        # BUG: exclude clauses always use bare column name — they do not
-        # resolve the table when a join is active.  This means the column
-        # is looked up in the *joined* table, not the primary model table.
         for col, op, val in self._excludes:
             clause, p = self._make_clause(col, op, val)
             where_clauses.append(f"NOT ({clause})")
@@ -153,10 +148,6 @@ class QuerySet:
             name, maybe_op = parts
             if maybe_op in ops:
                 # e.g. age__lt → col=age, op=<
-                # BUG: when a join is active, this should prefix with
-                # self._table, but it doesn't — so "age__lt" resolves
-                # to just "age < ?" which is ambiguous if the joined
-                # table also has "age".
                 return name, ops[maybe_op]
             # Could be a joined table reference: order__status → order.status =
             if self._join and name == self._join[0]:

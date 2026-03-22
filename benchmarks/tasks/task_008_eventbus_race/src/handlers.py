@@ -16,10 +16,6 @@ class HandlerRegistry:
         # {event_name: [(priority, handler), ...]}
         self._handlers: Dict[str, List[Tuple[int, Callable]]] = {}
 
-    # BUG: No lock protection — iterating self._handlers[name] in
-    # get_handlers while another thread mutates the list via add_handler
-    # causes RuntimeError or missed handlers.
-
     def add_handler(
         self, event_name: str, handler: Callable, priority: int = 10
     ) -> None:
@@ -33,8 +29,6 @@ class HandlerRegistry:
     def get_handlers(self, event_name: str) -> List[Callable]:
         """Return handlers for *event_name* in priority order."""
         pairs = self._handlers.get(event_name, [])
-        # BUG: returns a live view — iteration in the caller can race
-        # with concurrent add_handler that mutates the same list.
         return [h for _, h in pairs]
 
     def remove_handler(self, event_name: str, handler: Callable) -> bool:

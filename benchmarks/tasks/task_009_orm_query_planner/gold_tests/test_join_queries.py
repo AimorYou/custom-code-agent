@@ -1,14 +1,8 @@
-"""Gold tests — join + filter + exclude + order_by combinations.
-
-These tests FAIL on the buggy code because:
-1. exclude() after join() resolves columns against the wrong table
-2. order_by() after join() does not add table prefix → ambiguous column
-3. filter with __ lookup on own table after join doesn't prefix table
-"""
+"""Tests for join + filter + exclude + order_by combinations."""
 import pytest
 
-from src.litemap import ConnectionManager, IntField, StringField, BoolField, ForeignKey
-from src.litemap.model import Model
+from src import ConnectionManager, IntField, StringField, BoolField, ForeignKey
+from src.model import Model
 
 
 # ------------------------------------------------------------------ models
@@ -63,9 +57,6 @@ class TestJoinFilterExclude:
     def test_exclude_applies_to_primary_table_after_join(self, data):
         """exclude(total__lt=100) must exclude based on Purchase.total,
         not Customer columns.
-
-        BUG: Without table prefix, 'total' is ambiguous or resolves
-        to the wrong table.
         """
         rows = (
             Purchase.objects
@@ -82,7 +73,6 @@ class TestJoinFilterExclude:
         """After join(Customer), exclude(name='Widget') must target Purchase.name.
 
         Both Purchase and Customer have a 'name' column.
-        BUG: Without table prefix, 'name' is ambiguous.
         """
         rows = (
             Purchase.objects
@@ -112,12 +102,7 @@ class TestJoinFilterExclude:
 
 class TestJoinOrderBy:
     def test_order_by_uses_primary_table_prefix(self, data):
-        """order_by('name') after join must sort by Purchase.name, not Customer.name.
-
-        BUG: order_by does not prefix column with table name when join
-        is active. The generated SQL must contain 'purchase.name' in
-        ORDER BY, not bare 'name'.
-        """
+        """order_by('name') after join must sort by Purchase.name, not Customer.name."""
         qs = Purchase.objects.join(Customer).order_by("name")
         sql, _ = qs._build_sql()
         # After fix, ORDER BY should reference purchase.name explicitly

@@ -1,39 +1,50 @@
-# Task 011 — Async Pipeline
+# asyncpipe
 
-| Свойство | Значение |
-|---|---|
-| **Тип** | bugfix + concurrency |
-| **Сложность** | hard |
-| **Файлы с багом** | `src/loader.py` |
-| **Связанные файлы** | `src/pipeline.py`, `src/processor.py`, `src/utils.py` |
-| **Тесты (visible)** | `tests/test_pipeline_order.py` |
-| **Gold-тесты** | `gold_tests/test_pipeline_order.py` |
+A lightweight async data processing pipeline for Python.
 
-## Описание
+## Overview
 
-Асинхронный загрузчик файлов использует `results.append()` внутри
-конкурентных задач. Порядок append зависит от времени завершения
-каждой задачи (симулируется `asyncio.sleep` пропорционально размеру файла),
-поэтому итоговый список не совпадает с порядком входных путей.
+asyncpipe loads files concurrently, processes them through a configurable pipeline, and produces structured reports. It's designed for I/O-bound workloads where you want to maximize throughput without sacrificing simplicity.
 
-Downstream-компоненты (`processor.py`, `utils.py`) назначают порядковые
-номера по позиции в списке — сломанный порядок каскадно ломает весь pipeline.
+## Architecture
 
-**Правильное решение**: использовать `asyncio.gather()` который возвращает
-результаты в порядке входных awaitable, а не в порядке завершения. Либо
-собирать результаты в индексированную структуру.
+The pipeline has three stages:
 
-## Запуск тестов
+1. **Loader** (`src/loader.py`) -- Reads input files concurrently using `asyncio` tasks. Handles variable I/O latency gracefully.
+2. **Processor** (`src/processor.py`) -- Transforms raw file contents into structured records with sequence numbers and metadata.
+3. **Report generator** (`src/utils.py`) -- Combines processed records into a final output report.
 
-```bash
-cd benchmarks/tasks/task_011_async_pipeline
-python -m pytest tests/ -v          # existing (pass on buggy code)
-python -m pytest gold_tests/ -v     # gold (fail on buggy code)
+The orchestration logic lives in `src/pipeline.py`, which chains the stages together.
+
+## Quick start
+
+```python
+import asyncio
+from src.pipeline import run_pipeline
+
+result = asyncio.run(run_pipeline(["data/input1.txt", "data/input2.txt"]))
+print(result)
 ```
 
-## Что проверяет
+## Project structure
 
-- Async/await reasoning
-- Понимание `asyncio.gather` vs mutable shared state
-- Multi-file tracing (4 файла)
-- Сохранение concurrency при исправлении
+```
+src/
+  loader.py        # Async file loading
+  processor.py     # Data transformation
+  pipeline.py      # Pipeline orchestration
+  utils.py         # Report generation
+tests/
+  test_pipeline_order.py
+```
+
+## Running tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+## Requirements
+
+- Python 3.10+
+- No external dependencies (stdlib only)

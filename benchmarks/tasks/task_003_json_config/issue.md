@@ -1,26 +1,25 @@
-# Feature: Add JSON config support to config loader
+# JSON config file fails to load
 
-## Description
+Hey, I just tried switching one of our service configs from YAML to JSON (we're standardizing on JSON across the team) and got this error:
 
-The current configuration loader only supports YAML files. We want to allow
-loading configuration from JSON files as well.
+```
+ValueError: JSON config loading is not implemented yet: config/app.json
+```
 
-## Expected behavior
+I was under the impression JSON was already supported — the function signature for `load_config()` lists `.json` as a supported extension. I double-checked and my file is valid JSON:
 
-`load_config(path)` should detect whether the file is YAML or JSON based on
-the file extension (`.yaml` / `.yml` → YAML, `.json` → JSON) and parse it
-accordingly.
+```json
+{
+  "database": {
+    "host": "localhost",
+    "port": 5432
+  },
+  "logging": {
+    "level": "info"
+  }
+}
+```
 
-The change should **not** break existing YAML functionality. After loading,
-the config should still be validated and merged with defaults by the existing
-utility functions.
+Loading the same settings from a `.yaml` file works fine, so it's specifically something with how JSON files are handled.
 
-## Notes
-
-- `config_loader.py` contains the main `load_config()` function.
-- `utils.py` provides `merge_defaults()` and `validate_config()`.
-- `app.py` uses `load_config` — it should not need changes.
-
-## Tests currently failing in
-
-`tests/test_config_loader.py`
+Would be great to get this fixed since we have a few more services to migrate over the next sprint.

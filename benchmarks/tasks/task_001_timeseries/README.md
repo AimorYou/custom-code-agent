@@ -1,27 +1,62 @@
-# Task 003 — Timeseries
+# tskit
 
-| Свойство | Значение |
-|---|---|
-| **Тип** | bugfix |
-| **Сложность** | easy |
-| **Файлы с багом** | `src/timeseries.py` |
-| **Тесты (visible)** | `tests/test_timeseries.py` |
-| **Gold-тесты** | `gold_tests/test_timeseries.py` |
+Lightweight timeseries utilities for NumPy arrays. No heavy dependencies, just the basics done right.
 
-## Описание
-
-Функция `rolling_mean()` использует окно размером `window + 1` вместо
-`window` из-за ошибки в вычислении индексов среза.
-
-## Запуск тестов
+## Installation
 
 ```bash
-cd benchmarks/tasks/task_003_timeseries
-python -m pytest tests/ -v          # existing (pass on buggy code)
-python -m pytest gold_tests/ -v     # gold (fail on buggy code)
+pip install numpy
 ```
 
-## Что проверяет
+Then copy the `src/` directory into your project, or add it to your `PYTHONPATH`.
 
-- Off-by-one ошибка
-- Однофайловый bugfix
+## Quick start
+
+```python
+import numpy as np
+from src.timeseries import rolling_mean, exponential_moving_average
+
+data = np.array([1.0, 3.0, 5.0, 7.0, 9.0, 11.0])
+
+# Rolling (moving) mean with a window of 3
+rm = rolling_mean(data, window=3)
+print(rm)  # [nan, nan, 3.0, 5.0, 7.0, 9.0]
+
+# Exponential moving average
+ema = exponential_moving_average(data, alpha=0.3)
+print(ema)  # smoothed series
+```
+
+## API reference
+
+### `rolling_mean(data, window)`
+
+Compute the rolling mean over a 1-D NumPy array.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `data` | `np.ndarray` | 1-D numeric array |
+| `window` | `int` | Number of elements in each window (>= 1) |
+
+Returns an array of the same length. The first `window - 1` positions are `NaN`.
+
+### `exponential_moving_average(data, alpha)`
+
+Compute the exponential moving average (EMA).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `data` | `np.ndarray` | 1-D numeric array |
+| `alpha` | `float` | Smoothing factor in (0, 1] |
+
+Returns an array of the same length as the input.
+
+## Running tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+## License
+
+MIT

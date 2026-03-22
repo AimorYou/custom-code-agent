@@ -1,42 +1,73 @@
-# Task 012 — Plugin System
+# plugkit
 
-| Свойство | Значение |
-|---|---|
-| **Тип** | feature + refactor |
-| **Сложность** | hard |
-| **Файлы с багами** | `src/plugin_loader.py`, `src/plugin_registry.py` |
-| **Связанные файлы** | `src/app.py`, `src/plugins/example_plugin.py`, `src/plugins/math_plugin.py` |
-| **Тесты (visible)** | `tests/test_plugin_discovery.py` |
-| **Gold-тесты** | `gold_tests/test_plugin_discovery.py` |
+A minimal plugin system framework for Python applications.
 
-## Описание
+## Overview
 
-Система плагинов содержит **три взаимосвязанных бага**:
+plugkit provides automatic plugin discovery, registration, and retrieval. Drop a Python module into the plugins directory, decorate your class, and it's ready to use.
 
-1. **`plugin_loader.py`** — `discover_plugins()` импортирует только
-   `example_plugin` явно; динамический fallback строит путь модуля через
-   `os.path.join` (`"src/plugins/math_plugin"`) вместо точечной нотации
-   (`"src.plugins.math_plugin"`), что вызывает `ModuleNotFoundError`.
+## Writing a plugin
 
-2. **`plugin_loader.py`** — ошибка `ModuleNotFoundError` молча
-   подавляется `except ... pass`, поэтому плагин `math` никогда не
-   загружается.
+Create a new `.py` file in `src/plugins/`:
 
-3. **`plugin_registry.py`** — `get_plugin(name)` возвращает **класс**
-   вместо **экземпляра**, из-за чего `app.run_plugin()` падает с
-   `TypeError` при вызове `plugin.execute()`.
+```python
+# src/plugins/my_plugin.py
+from src.plugin_registry import register_plugin
 
-## Запуск тестов
-
-```bash
-cd benchmarks/tasks/task_012_plugin_system
-python -m pytest tests/ -v          # existing (pass on buggy code)
-python -m pytest gold_tests/ -v     # gold (fail on buggy code)
+@register_plugin("my_plugin")
+class MyPlugin:
+    def execute(self, **kwargs):
+        # Your plugin logic here
+        return {"result": "done"}
 ```
 
-## Что проверяет
+That's it. The framework handles discovery and registration automatically.
 
-- Динамический импорт (`importlib`)
-- Архитектурный refactor
-- Reasoning через 5 модулей
-- Множественные баги в разных файлах
+## Using plugins
+
+```python
+from src.plugin_loader import discover_plugins
+from src.plugin_registry import get_plugin, list_plugins
+
+# Discover all plugins in the directory
+discover_plugins("src/plugins")
+
+# See what's available
+print(list_plugins())  # ["example", "my_plugin"]
+
+# Get and run a plugin
+plugin = get_plugin("my_plugin")
+result = plugin.execute(text="hello")
+```
+
+## Architecture
+
+- **Plugin registry** (`src/plugin_registry.py`) -- Global registry powered by the `@register_plugin` decorator. Stores plugins by name and provides lookup via `get_plugin()`.
+- **Plugin loader** (`src/plugin_loader.py`) -- Scans the plugins directory and imports all modules, triggering decorator-based registration.
+- **App** (`src/app.py`) -- Example application that uses the plugin system.
+
+## Project structure
+
+```
+src/
+  plugin_loader.py       # Plugin discovery
+  plugin_registry.py     # Registration and retrieval
+  app.py                 # Application entry point
+  plugins/
+    __init__.py
+    example_plugin.py    # Built-in example plugin
+    math_plugin.py       # Math operations plugin
+tests/
+  test_plugin_discovery.py
+```
+
+## Running tests
+
+```bash
+python -m pytest tests/ -v
+```
+
+## Requirements
+
+- Python 3.10+
+- No external dependencies

@@ -1,12 +1,8 @@
-"""Existing tests for litemap QuerySet — simple cases without join.
-
-All these tests pass on the current (buggy) code because
-the bugs only manifest when join() is combined with filter/exclude/order_by.
-"""
+"""Tests for litemap QuerySet."""
 import pytest
 
-from src.litemap import ConnectionManager, IntField, StringField, BoolField, ForeignKey
-from src.litemap.model import Model
+from src import ConnectionManager, IntField, StringField, BoolField, ForeignKey
+from src.model import Model
 
 
 # ------------------------------------------------------------------ models

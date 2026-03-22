@@ -23,18 +23,12 @@ async def _load_one(path: str) -> str:
 
 
 async def load_files_async(paths: List[str]) -> List[str]:
-    """Load all *paths* concurrently and return their contents.
-
-    .. warning::
-        BUG — results are collected via ``list.append`` inside each task
-        callback, so the returned list follows **completion order**, not
-        the original input order.
-    """
+    """Load all paths concurrently and return their contents."""
     results: List[str] = []
 
     async def _worker(path: str) -> None:
         content = await _load_one(path)
-        results.append(content)           # ← order depends on finish time
+        results.append(content)
 
     tasks = [asyncio.create_task(_worker(p)) for p in paths]
     await asyncio.gather(*tasks)

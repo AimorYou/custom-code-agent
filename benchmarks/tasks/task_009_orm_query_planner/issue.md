@@ -1,49 +1,43 @@
-# Неправильные результаты при chained .filter().exclude() с join
+# Chained queries break after adding join()
 
-## Что происходит
+## What's happening
 
-При использовании цепочки `.join(OtherModel).filter(...).exclude(...)`:
+Everything works fine with basic `filter()`, `exclude()`, and `order_by()` on a single table. But as soon as I add a `join()` call, things start falling apart.
 
-1. **exclude() резолвит колонку в неправильную таблицу.** Например, `Order.objects.join(Customer).exclude(age__lt=18)` — exclude должен применяться к `Customer.age`, но из-за отсутствия table prefix в SQL колонка `age` резолвится неправильно или вызывает ошибку.
-
-2. **order_by() после join() падает с `ambiguous column name`.** Например, `Order.objects.join(Customer).order_by("total")` — поскольку `total` не префиксится именем таблицы, SQLite не может определить к какой таблице относится колонка.
-
-3. **В простых случаях без join всё работает нормально.**
-
-## Как воспроизвести
+### 1. `order_by()` after `join()` gives "ambiguous column name"
 
 ```python
-from src.litemap.model import Model
-from src.litemap import IntField, StringField, ForeignKey, ConnectionManager
-
-class Customer(Model):
-    name = StringField()
-    age = IntField()
-
-class Order(Model):
-    status = StringField()
-    total = IntField()
-    customer_id = ForeignKey(to="customer")
-
-# Setup...
-
-# Это ломается:
-orders = (
-    Order.objects
+purchases = (
+    Purchase.objects
     .join(Customer)
-    .filter(order__status="paid")
-    .exclude(customer__age__lt=18)  # exclude резолвит колонку неправильно
-    .order_by("total")               # ambiguous column name
+    .order_by("name")
+    .all()
+)
+# sqlite3.OperationalError: ambiguous column name: name
+```
+
+Both `Purchase` and `Customer` have a `name` column. The generated SQL has `ORDER BY name ASC` with no table qualifier, so SQLite doesn't know which table's `name` to sort by.
+
+### 2. `exclude()` after `join()` targets the wrong table
+
+```python
+rows = (
+    Purchase.objects
+    .join(Customer)
+    .filter(purchase__status="paid")
+    .exclude(total__lt=100)
     .all()
 )
 ```
 
-## Что ожидается
+The `exclude(total__lt=100)` should apply to `Purchase.total`, but because the generated SQL uses bare `total` instead of `purchase.total`, it either errors out or resolves against the wrong table when column names overlap.
 
-- `exclude()` после `join()` должен корректно резолвить таблицу для колонки
-- `order_by()` после `join()` должен добавлять table prefix к колонкам
-- `filter()` с `__` lookup на собственную таблицу после join должен работать корректно
+### 3. Filter lookups with `__` operators don't get table prefix after join
 
-## Затронутые файлы
+Using something like `filter(age__gt=20)` after a `join()` generates `age > ?` without qualifying which table `age` belongs to. On a single table this is fine, but with a join it becomes ambiguous.
 
-- `src/litemap/query.py` — `QuerySet._parse_lookup()`, `_build_sql()`, `order_by()`
+## Expected behavior
+
+When a join is active, column references in `exclude()`, `order_by()`, and `filter()` operator lookups should be qualified with the primary model's table name to avoid ambiguity.
+
+Simple queries without joins should continue to work exactly as before.

@@ -58,8 +58,6 @@ def _merge_lists(base: list, override: list, strategy: str) -> list:
 
     # strategy == "merge"  — element-wise
     merged: list = []
-    # BUG: only iterates up to min(len(base), len(override)) — if
-    # override is longer than base, the extra items are silently dropped.
     for i in range(min(len(base), len(override))):
         b, o = base[i], override[i]
         if isinstance(b, dict) and isinstance(o, dict):
@@ -68,5 +66,4 @@ def _merge_lists(base: list, override: list, strategy: str) -> list:
             merged.append(m)
         else:
             merged.append(copy.deepcopy(o))
-    # BUG: should append remaining items from the longer list, but doesn't.
     return merged

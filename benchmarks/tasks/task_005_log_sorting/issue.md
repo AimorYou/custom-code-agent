@@ -1,45 +1,28 @@
-# Bug: Log entries are sorted incorrectly when timestamps differ in timezone
+# Logs from different regions sort out of order after aggregation
 
-## Description
+We use logmerge to aggregate logs from services running in multiple AWS regions (us-east-1 and eu-west-1). After merging, the entries are supposed to be in chronological order, but they're clearly not.
 
-The log aggregation utility merges logs from multiple services.  However,
-when logs contain timestamps from **different timezones**, the final ordering
-is incorrect because the sorting compares naive string representations instead
-of absolute UTC times.
-
-## Steps to reproduce
+Here's a minimal example:
 
 ```python
 from src.aggregator import aggregate_logs
 
-logs_us = [
+us_logs = [
     "2024-06-01T10:00:00-04:00 service-a Starting up",
     "2024-06-01T11:00:00-04:00 service-a Ready",
 ]
-logs_eu = [
-    "2024-06-01T14:30:00+02:00 service-b Starting up",  # = 12:30 UTC
+
+eu_logs = [
+    "2024-06-01T14:30:00+02:00 service-b Starting up",
 ]
 
-merged = aggregate_logs([logs_us, logs_eu])
-# Expected order by UTC:
-#   10:00 EDT (14:00 UTC) → service-a Starting
-#   14:30 CEST (12:30 UTC) → service-b Starting  ← should be FIRST
-#   11:00 EDT (15:00 UTC) → service-a Ready
-# Actual: sorted by string representation, so order is wrong.
+merged = aggregate_logs([us_logs, eu_logs])
+for entry in merged:
+    print(entry)
 ```
 
-## Expected behavior
+The EU entry (`14:30:00+02:00`) is actually `12:30 UTC`, so it should appear before the US `11:00:00-04:00` entry (`15:00 UTC`). But in the output it ends up last, as if the tool is just comparing the time portion without accounting for the timezone offset.
 
-Logs should be sorted by **absolute (UTC) time** regardless of the original
-timezone in the timestamp.
+This is causing confusion during incident reviews because the timeline doesn't match what actually happened. Logs from our EU services look like they happened later than they did.
 
-## Notes
-
-- `log_parser.py` parses individual log lines into structured records.
-- `time_utils.py` has a `parse_timestamp()` helper — look at whether it
-  preserves timezone information.
-- `aggregator.py` merges and sorts the parsed records.
-
-## Tests currently failing in
-
-`tests/test_log_sorting.py`
+We need the merged output sorted by absolute time regardless of what timezone each source is in.

@@ -1,14 +1,8 @@
-"""Gold tests — deep merge, diff, and patch on complex nested structures.
-
-These tests FAIL on the buggy code because:
-1. merge strategy "merge" drops tail items when override list is longer
-2. diff() collapses subtrees deeper than 2 levels into a single "changed"
-3. patch() with collapsed diffs overwrites entire nested dicts
-"""
+"""Tests for deep merge, diff, and patch on complex nested structures."""
 import copy
 import pytest
 
-from src.confmerge import deep_merge, compute_diff, apply_patch
+from src import deep_merge, compute_diff, apply_patch
 
 
 # ================================================================== merge

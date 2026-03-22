@@ -1,34 +1,58 @@
-# Task 009 — CLI Batch Mode
+# fileproc
 
-| Свойство | Значение |
-|---|---|
-| **Тип** | feature + bugfix |
-| **Сложность** | medium |
-| **Файлы для изменения** | `src/cli.py`, `src/file_utils.py` |
-| **Связанные файлы** | `src/processor.py` |
-| **Тесты (visible)** | `tests/test_cli_batch.py` |
-| **Gold-тесты** | `gold_tests/test_cli_batch.py` |
+A simple command-line tool for processing text files. Reads a file, applies a standard transformation pipeline, and outputs the result.
 
-## Описание
-
-CLI обрабатывает один файл. Нужно добавить `--batch` флаг для обработки
-всех поддерживаемых файлов в директории.
-
-Два бага:
-1. `cli.py` — отсутствует `--batch` аргумент и логика batch-обработки
-2. `file_utils.py` — `list_supported_files()` не фильтрует по расширению
-   (возвращает все файлы вместо `.txt` / `.csv`)
-
-## Запуск тестов
+## Installation
 
 ```bash
-cd benchmarks/tasks/task_009_cli_batch
-python -m pytest tests/ -v          # existing (pass on buggy code)
-python -m pytest gold_tests/ -v     # gold (fail on buggy code)
+pip install fileproc
 ```
 
-## Что проверяет
+## Usage
 
-- Feature addition (CLI parsing)
-- Multi-file bugfix
-- Переиспользование существующего кода
+```bash
+# Process a single file
+fileproc report.txt
+
+# Process a CSV file
+fileproc data.csv
+```
+
+## Supported file types
+
+- `.txt` — plain text files
+- `.csv` — comma-separated value files
+
+## Python API
+
+You can also use `fileproc` as a library:
+
+```python
+from fileproc.processor import process_file
+
+result = process_file("report.txt")
+print(result)
+```
+
+### Listing files in a directory
+
+```python
+from fileproc.file_utils import list_supported_files
+
+files = list_supported_files("./data/")
+for f in files:
+    print(f)
+```
+
+## Development
+
+```bash
+git clone https://github.com/yourorg/fileproc.git
+cd fileproc
+pip install -e ".[dev]"
+python -m pytest tests/ -v
+```
+
+## License
+
+MIT

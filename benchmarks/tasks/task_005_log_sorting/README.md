@@ -1,35 +1,72 @@
-# Task 010 — Log Sorting
+# logmerge
 
-| Свойство | Значение |
-|---|---|
-| **Тип** | bugfix |
-| **Сложность** | medium-hard |
-| **Файлы с багом** | `src/time_utils.py` |
-| **Связанные файлы** | `src/log_parser.py`, `src/aggregator.py` |
-| **Тесты (visible)** | `tests/test_log_sorting.py` |
-| **Gold-тесты** | `gold_tests/test_log_sorting.py` |
+A log aggregation utility that merges log streams from multiple services into a single, chronologically sorted output.
 
-## Описание
-
-Утилита агрегации логов некорректно сортирует записи из разных таймзон.
-`parse_timestamp()` в `time_utils.py` отбрасывает информацию о таймзоне
-и возвращает наивный `datetime`, из-за чего сортировка идёт по локальному
-времени вместо абсолютного (UTC).
-
-Агент должен: исправить `parse_timestamp()` чтобы он возвращал
-timezone-aware `datetime`, используя `datetime.fromisoformat()` или ручной
-парсинг offset.
-
-## Запуск тестов
+## Installation
 
 ```bash
-cd benchmarks/tasks/task_010_log_sorting
-python -m pytest tests/ -v          # existing (pass on buggy code)
-python -m pytest gold_tests/ -v     # gold (fail on buggy code)
+pip install logmerge
 ```
 
-## Что проверяет
+## Usage
 
-- Reasoning через несколько модулей
-- Работа с datetime/timezone
-- Баг в вспомогательном модуле, влияющий на весь pipeline
+### Command line
+
+```bash
+# Merge logs from multiple files
+logmerge service-a.log service-b.log service-c.log > merged.log
+
+# Merge all log files in a directory
+logmerge ./logs/*.log > merged.log
+```
+
+### Python API
+
+```python
+from logmerge.aggregator import aggregate_logs
+
+logs_a = [
+    "2024-06-01T10:00:00-04:00 service-a Starting up",
+    "2024-06-01T10:05:00-04:00 service-a Connected to DB",
+]
+
+logs_b = [
+    "2024-06-01T14:02:00+02:00 service-b Health check OK",
+]
+
+merged = aggregate_logs([logs_a, logs_b])
+for line in merged:
+    print(line)
+```
+
+## Log format
+
+Each log line must begin with an ISO-8601 timestamp, followed by a space and the message:
+
+```
+2024-06-01T10:00:00-04:00 service-a Starting up
+```
+
+Supported timestamp formats:
+- `2024-06-01T10:00:00-04:00` (with UTC offset)
+- `2024-06-01T10:00:00+02:00` (with UTC offset)
+- `2024-06-01T10:00:00Z` (UTC)
+
+## Architecture
+
+- **aggregator** — merges multiple log streams and sorts by timestamp
+- **log_parser** — parses individual log lines into structured records
+- **time_utils** — timestamp parsing helpers
+
+## Development
+
+```bash
+git clone https://github.com/yourorg/logmerge.git
+cd logmerge
+pip install -e ".[dev]"
+python -m pytest tests/ -v
+```
+
+## License
+
+MIT

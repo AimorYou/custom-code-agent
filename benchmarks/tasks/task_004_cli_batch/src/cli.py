@@ -11,7 +11,6 @@ def build_parser() -> argparse.ArgumentParser:
     """Create and return the argument parser."""
     parser = argparse.ArgumentParser(description="Process text files.")
     parser.add_argument("input", help="Path to input file or directory")
-    # TODO: add --batch flag for directory processing
     return parser
 
 
@@ -24,7 +23,6 @@ def run(args: argparse.Namespace) -> str | Dict[str, str]:
         Single processed string in normal mode, or a dict of
         ``{filename: processed}`` pairs in batch mode.
     """
-    # TODO: handle batch mode
     return process_file(args.input)
 
 

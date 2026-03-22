@@ -1,29 +1,90 @@
-# Task 014 — ORM Query Planner
+# litemap
 
-| Свойство | Значение |
-|---|---|
-| **Тип** | bugfix |
-| **Сложность** | hard |
-| **Файлы с багом** | `src/litemap/query.py` |
-| **Тесты (visible)** | `tests/test_query.py` |
-| **Gold-тесты** | `gold_tests/test_join_queries.py` |
+A lightweight Python ORM for SQLite with a Django-inspired query API.
 
-## Описание
+## Features
 
-Query planner в мини-ORM неправильно резолвит таблицы при комбинации
-`join() + filter() + exclude() + order_by()`. Exclude применяется к колонке
-не той таблицы, order_by не добавляет table prefix.
+- Declarative model definitions with typed fields
+- Lazy `QuerySet` with chained `filter()`, `exclude()`, `order_by()`
+- Foreign key relationships and `join()` support
+- Automatic table creation from model definitions
+- Environment-friendly: uses SQLite with in-memory or file-based databases
 
-## Запуск тестов
+## Installation
 
 ```bash
-cd benchmarks/tasks/task_014_orm_query_planner
-python -m pytest tests/ -v          # existing (pass on buggy code)
-python -m pytest gold_tests/ -v     # gold (fail on buggy code)
+pip install -e .
 ```
 
-## Что проверяет
+## Defining models
 
-- Понимание SQL query building
-- Table aliasing / column resolution
-- Chained lazy query API
+```python
+from src import IntField, StringField, BoolField, ForeignKey
+from src.model import Model
+
+class Department(Model):
+    name = StringField()
+
+class Employee(Model):
+    name = StringField()
+    age = IntField()
+    active = BoolField(default=True)
+    department_id = ForeignKey(to="department")
+```
+
+## Creating tables
+
+```python
+from src import ConnectionManager
+
+ConnectionManager.get(":memory:")  # or "mydb.sqlite"
+Department.create_table()
+Employee.create_table()
+```
+
+## Inserting data
+
+```python
+eng = Department.insert(name="Engineering")
+Employee.insert(name="Alice", age=30, active=True, department_id=eng.id)
+```
+
+## Querying
+
+```python
+# Basic filter
+seniors = Employee.objects.filter(age__gt=25).all()
+
+# Exclude
+non_bobs = Employee.objects.exclude(name="Bob").all()
+
+# Chained filters
+active_seniors = Employee.objects.filter(age__gt=25).filter(active=True).all()
+
+# Ordering
+by_age = Employee.objects.order_by("age").all()
+by_age_desc = Employee.objects.order_by("-age").all()
+
+# Count and first
+total = Employee.objects.count()
+youngest = Employee.objects.order_by("age").first()
+```
+
+## Joins
+
+```python
+# Join with another model via ForeignKey
+rows = (
+    Employee.objects
+    .join(Department)
+    .filter(department__name="Engineering")
+    .order_by("name")
+    .all()
+)
+```
+
+## Running tests
+
+```bash
+python -m pytest tests/ -v
+```

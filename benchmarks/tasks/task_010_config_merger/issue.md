@@ -1,45 +1,45 @@
-# Потеря данных при merge списков + невалидный diff для вложенных ключей
+# Data loss when merging configs with different-length lists and deeply nested keys
 
-## Что происходит
+## What's happening
 
-Три взаимосвязанных бага:
+We use confmerge in our deployment pipeline to layer environment-specific overrides on top of a base config. Recently we hit two separate data loss issues.
 
-### 1. deep_merge со стратегией "merge" теряет хвост длинного списка
+### 1. Plugin list gets truncated during merge
 
-Когда оба конфига содержат ключ со списком, и списки разной длины, стратегия `"merge"` итерирует только `min(len(base), len(override))` элементов. Хвост длинного списка (будь то base или override) молча теряется.
+Our base config has one plugin defined, and the production override adds two more. After merging with the `"merge"` strategy, only the first plugin survives -- the rest vanish silently.
 
 ```python
-base = {"plugins": [{"name": "a"}]}
-override = {"plugins": [{"name": "a"}, {"name": "b"}, {"name": "c"}]}
+base = {"plugins": [{"name": "auth", "enabled": True}]}
+override = {"plugins": [
+    {"name": "auth", "enabled": True},
+    {"name": "metrics", "enabled": True},
+    {"name": "cache", "enabled": True},
+]}
+
 result = deep_merge(base, override, strategy="merge")
-# Ожидается: 3 плагина
-# Получается: 1 плагин (только первый, остальные потеряны)
+# Expected: 3 plugins
+# Actual: only 1 plugin -- "metrics" and "cache" are gone
 ```
 
-### 2. compute_diff() для вложенности > 2 уровней возвращает "changed" на всё поддерево
+The same thing happens the other way around: if the base list is longer than the override, the extra base items disappear too.
 
-Вместо гранулярного diff на каждый изменённый лист, функция "сворачивает" всё вложенное поддерево в один `changed` entry, если глубина > 2.
+### 2. Config diff collapses deeply nested changes
+
+When computing a diff between two configs that differ three or more levels deep, the diff engine returns a single "changed" entry for the entire subtree instead of a granular per-leaf diff.
 
 ```python
-old = {"a": {"b": {"c": 1, "d": 2}}}
-new = {"a": {"b": {"c": 99, "d": 2}}}
+old = {"infra": {"cluster": {"nodes": {"count": 3, "type": "m5.large"}, "region": "us-east-1"}}}
+new = {"infra": {"cluster": {"nodes": {"count": 5, "type": "m5.large"}, "region": "us-east-1"}}}
+
 diff = compute_diff(old, new)
-# Ожидается: [{"op": "changed", "path": "a.b.c", ...}]
-# Получается: [{"op": "changed", "path": "a.b", "value": {"c": 99, "d": 2}}]
+# Expected: one entry at path "infra.cluster.nodes.count"
+# Actual: one entry at path "infra.cluster" replacing the entire subtree
 ```
 
-### 3. apply_patch() с таким "свёрнутым" diff затирает неизменённые ключи
+This also breaks `apply_patch()` -- when you apply the collapsed diff back, it overwrites sibling keys that didn't change (like `nodes.type` and `region`), effectively losing data.
 
-Поскольку diff содержит `"changed"` с полным поддеревом, `apply_patch` заменяет весь вложенный словарь, теряя ключи которые не менялись.
+## Expected behavior
 
-## Что ожидается
-
-1. `deep_merge(..., strategy="merge")` — при разной длине списков, лишние элементы из более длинного списка добавляются в результат
-2. `compute_diff()` — рекурсивный обход на любую глубину, гранулярный diff на уровне листьев
-3. `apply_patch()` — корректно работает с гранулярным diff и не теряет данные
-
-## Затронутые файлы
-
-- `src/confmerge/merge.py` — `_merge_lists()`: не добавляет хвост длинного списка
-- `src/confmerge/diff.py` — `_diff_recurse()`: условие `"." not in prefix` блокирует рекурсию глубже 2 уровней
-- `src/confmerge/patch.py` — `apply_patch()`: работает некорректно из-за collapsed diff (фиксится автоматически если diff корректный)
+1. `deep_merge(..., strategy="merge")` should keep all items from the longer list when lists have different lengths. Overlapping indices get merged element-wise, remaining items get appended.
+2. `compute_diff()` should recurse to any depth and produce leaf-level entries.
+3. `apply_patch(old, compute_diff(old, new))` should produce a result equal to `new` without destroying unchanged keys.

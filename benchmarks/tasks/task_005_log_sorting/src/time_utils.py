@@ -11,12 +11,8 @@ def parse_timestamp(raw: str) -> datetime:
         2024-06-01T14:30:00+02:00
         2024-06-01T12:00:00Z
 
-    .. note::
-        BUG — the current implementation strips the timezone offset and
-        returns a **naive** datetime.  This causes incorrect comparisons
-        when timestamps originate from different timezones.
     """
-    # Strip timezone suffix to avoid parsing issues (WRONG approach)
+    # Strip timezone suffix for simpler parsing
     cleaned = raw
     if cleaned.endswith("Z"):
         cleaned = cleaned[:-1]
