@@ -40,7 +40,7 @@ custom-code-agent/
 │       └── submit.py             # Сигнал завершения задачи
 ├── benchmarks/
 │   ├── run_benchmark.py          # SWE-Bench-style раннер
-│   └── tasks/                    # 5 задач с багами и тестами
+│   └── tasks/                    # 10 задач с багами и тестами
 ├── tests/
 │   └── test_tools.py             # Юнит-тесты инструментов
 ├── run.py                        # Entry point
