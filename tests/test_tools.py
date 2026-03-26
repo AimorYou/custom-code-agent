@@ -46,6 +46,29 @@ def test_bash_timeout():
     assert "timed out" in obs.text.lower()
 
 
+def test_bash_testbed_rewrite():
+    """Commands referencing /testbed should be rewritten to working_dir."""
+    with tempfile.TemporaryDirectory() as td:
+        # Create a file in the temp dir
+        with open(os.path.join(td, "hello.txt"), "w") as f:
+            f.write("world")
+        tool = BashTool.create(working_dir=td)[0]
+        obs = tool(BashAction(command="cat /testbed/hello.txt"))
+        assert not obs.is_error
+        assert "world" in obs.text
+
+
+def test_bash_description_field():
+    """BashAction should accept an optional description field without error."""
+    obs = _run_bash("echo ok")
+    assert not obs.is_error
+    # Also verify with explicit description
+    tool = BashTool.create()[0]
+    obs = tool(BashAction(command="echo ok", description="test command"))
+    assert not obs.is_error
+    assert "ok" in obs.text
+
+
 # ---------------------------------------------------------------------------
 # GrepTool
 # ---------------------------------------------------------------------------
@@ -326,6 +349,54 @@ def test_editor_path_outside_workdir(editor_env):
 
 
 # ---------------------------------------------------------------------------
+# GlobTool
+# ---------------------------------------------------------------------------
+
+from agent.tools.glob import GlobAction, GlobTool, _GlobExecutor
+
+
+def test_glob_finds_py_files():
+    with tempfile.TemporaryDirectory() as td:
+        os.makedirs(os.path.join(td, "src"))
+        open(os.path.join(td, "src", "main.py"), "w").close()
+        open(os.path.join(td, "src", "utils.py"), "w").close()
+        open(os.path.join(td, "README.md"), "w").close()
+
+        ex = _GlobExecutor(working_dir=td)
+        obs = ex(GlobAction(pattern="**/*.py"))
+        assert not obs.is_error
+        assert "main.py" in obs.text
+        assert "utils.py" in obs.text
+        assert "README.md" not in obs.text
+
+
+def test_glob_no_matches():
+    with tempfile.TemporaryDirectory() as td:
+        ex = _GlobExecutor(working_dir=td)
+        obs = ex(GlobAction(pattern="**/*.xyz"))
+        assert "No files matched" in obs.text
+
+
+def test_glob_subdir():
+    with tempfile.TemporaryDirectory() as td:
+        sub = os.path.join(td, "pkg")
+        os.makedirs(sub)
+        open(os.path.join(sub, "a.py"), "w").close()
+
+        ex = _GlobExecutor(working_dir=td)
+        obs = ex(GlobAction(pattern="*.py", path="pkg"))
+        assert not obs.is_error
+        assert "a.py" in obs.text
+
+
+def test_glob_bad_dir():
+    with tempfile.TemporaryDirectory() as td:
+        ex = _GlobExecutor(working_dir=td)
+        obs = ex(GlobAction(pattern="*.py", path="nonexistent"))
+        assert obs.is_error
+
+
+# ---------------------------------------------------------------------------
 # SubmitTool
 # ---------------------------------------------------------------------------
 
@@ -353,6 +424,7 @@ def test_custom_tools_registered():
     assert "smart_editor" in registered
     assert "bash" in registered
     assert "bash_session" in registered
+    assert "glob" in registered
     assert "grep" in registered
     assert "submit" in registered
 

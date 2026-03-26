@@ -16,6 +16,7 @@ run.py                          ← entry point
         │     └── LLM (litellm → Anthropic / OpenAI / любой провайдер)
         ├── BashSessionTool ← обёртка над TerminalTool (персистентная bash-сессия)
         ├── BashTool        ← кастомный: stateless subprocess
+        ├── GlobTool        ← кастомный: поиск файлов по glob-паттерну
         ├── GrepTool        ← кастомный: regex-поиск с контекстом
         ├── SmartReaderTool ← кастомный: чтение файла с диапазоном строк и контекстом
         ├── SmartEditorTool ← кастомный: редактирование файлов (patch/replace/insert/undo)
@@ -28,12 +29,13 @@ custom-code-agent/
 │   ├── agent_config.yaml         # Конфиг для SWE-bench: промпты, tools, step_limit
 │   ├── agent_config_user.yaml    # Конфиг для пользовательского режима
 │   ├── config.py                 # Загрузка конфига (.env + YAML + CLI)
-│   ├── token_tracker.py          # Трекинг токенов и стоимости
+│   ├── agent_tracker.py          # Трекинг метрик агента (токены, стоимость, вызовы)
 │   ├── prompts/
 │   │   └── system_prompt.j2      # Jinja2 системный промпт
 │   └── tools/
 │       ├── bash.py               # Stateless subprocess bash
 │       ├── bash_session.py       # Обёртка над TerminalTool (персистентная сессия)
+│       ├── glob.py               # Поиск файлов по glob-паттерну
 │       ├── grep.py               # Regex-поиск по файлам с контекстом
 │       ├── smart_reader.py       # Чтение файла с диапазоном строк и контекстом
 │       ├── smart_editor.py       # Редактирование файлов (patch/replace/insert/undo)
@@ -108,10 +110,14 @@ agent:
   system_template: "system_prompt.j2"
   instance_template: |
     ...
+  llm_params:
+    temperature: 0.0
   step_limit: 30
   cost_limit: 0
+  timeout: 600
   tools:                    # Whitelist доступных инструментов
     - bash
+    - glob
     - grep
     - smart_reader
     - smart_editor
@@ -140,6 +146,7 @@ agent:
 |-----|----------|----------|
 | `bash_session` | Обёртка над TerminalTool | Персистентная bash-сессия (состояние между вызовами) |
 | `bash` | Кастомный | Stateless subprocess — каждый вызов независим |
+| `glob` | Кастомный | Поиск файлов по glob-паттерну (сортировка по mtime) |
 | `grep` | Кастомный | Regex-поиск по файлам с N строками контекста |
 | `smart_reader` | Кастомный | Чтение файла: диапазон строк, контекст вокруг строки, авто-truncation |
 | `smart_editor` | Кастомный | Редактирование файлов: patch, replace, insert, create, delete, undo |
@@ -151,7 +158,7 @@ agent:
 
 ## Бенчмарк
 
-5 SWE-Bench-style задач для тестирования агента. Подробности — в [benchmarks/README.md](benchmarks/README.md).
+10 SWE-Bench-style задач для тестирования агента. Подробности — в [benchmarks/README.md](benchmarks/README.md).
 
 ```bash
 # Все задачи (логи агента по умолчанию)
@@ -169,21 +176,27 @@ uv run python benchmarks/run_benchmark.py --save results.json
 
 ---
 
-## Трекинг токенов
+## Трекинг метрик
 
 После каждого запуска выводится таблица и создаётся `METRICS.json` в рабочей директории:
 
 ```
-         Token Usage Summary
-┌───────────────────────┬────────────────────┐
-│ Metric                │              Value │
-├───────────────────────┼────────────────────┤
-│ Model                 │  openai/qwen/...   │
-│ Steps                 │                  5 │
-│ Input tokens          │             12,430 │
-│ Output tokens         │              1,820 │
-│ Estimated cost        │            $0.0521 │
-└───────────────────────┴────────────────────┘
+           Agent Summary
+┏━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━┓
+┃ Metric             ┃       Value ┃
+┡━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━┩
+│ Model              │ anthropic/… │
+│ LLM calls          │           7 │
+│ Total tool calls   │           7 │
+│ Tool errors        │           0 │
+│                    │             │
+│ Input tokens       │     120,000 │
+│ Output tokens      │       3,200 │
+│ Cache write tokens │           0 │
+│ Cache read tokens  │     108,000 │
+│                    │             │
+│ Total cost         │     $0.0143 │
+└────────────────────┴─────────────┘
 ```
 
 ---
