@@ -69,9 +69,10 @@ class _BashExecutor(ToolExecutor):
         conversation: "LocalConversation | None" = None,
     ) -> BashObservation:
         timeout = action.timeout or self._default_timeout
+        command = action.command.replace("/testbed", self._working_dir)
         try:
             result = subprocess.run(
-                action.command,
+                command,
                 shell=True,
                 capture_output=True,
                 text=True,
