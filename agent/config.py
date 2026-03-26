@@ -50,6 +50,7 @@ class AgentYamlConfig:
     instance_template: str = "{{task}}"
     step_limit: int = 30
     cost_limit: float = 0
+    timeout: int = 600
     tools: list[str] = field(default_factory=lambda: list(_DEFAULT_TOOLS))
     llm_params: dict = field(default_factory=dict)
 
@@ -66,6 +67,7 @@ class AgentYamlConfig:
             instance_template=agent_cfg.get("instance_template", cls.instance_template),
             step_limit=agent_cfg.get("step_limit", cls.step_limit),
             cost_limit=agent_cfg.get("cost_limit", cls.cost_limit),
+            timeout=agent_cfg.get("timeout", cls.timeout),
             tools=agent_cfg.get("tools", list(_DEFAULT_TOOLS)),
             llm_params=agent_cfg.get("llm_params", {}),
         )
